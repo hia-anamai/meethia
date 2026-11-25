@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0d838d">
+  <link rel="preload" href="/fonts/LINESeedSansTH_W_Rg.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/LINESeedSansTH_W_Bd.woff2" as="font" type="font/woff2" crossorigin>
+  <title>แบบตอบรับการเข้าร่วมประชุม</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="wrap">
+    <header class="meeting" id="meetingHeader" hidden>
+      <p class="eyebrow">แบบตอบรับการเข้าร่วมประชุม</p>
+      <h1 id="meetingName"></h1>
+      <dl class="meta">
+        <div><dt>วันที่</dt><dd id="meetingDate"></dd></div>
+        <div><dt>สถานที่</dt><dd id="meetingVenue"></dd></div>
+        <div id="closeRow"><dt>ปิดรับ</dt><dd id="meetingClose"></dd></div>
+        <div id="seatRow" hidden><dt>ที่นั่ง</dt><dd id="meetingSeats"></dd></div>
+      </dl>
+      <span class="badge" id="meetingType"></span>
+      <span class="badge" id="meetingMode"></span>
+    </header>
+
+    <section class="card" id="loading">
+      <p>กำลังโหลดข้อมูลการประชุม…</p>
+    </section>
+
+    <section class="card notice" id="fatal" hidden>
+      <h2 id="fatalTitle">ไม่พบการประชุม</h2>
+      <p id="fatalText"></p>
+    </section>
+
+    <section class="card notice full" id="fullView" hidden>
+      <h2>ขออภัย ที่นั่งเต็มแล้ว</h2>
+      <p>การประชุมนี้รับผู้เข้าร่วมแบบ On-site ครบจำนวนแล้ว <span id="fullContact"></span></p>
+      <p class="hint">หากท่านลงทะเบียนไว้แล้วและไม่สามารถเข้าร่วมได้ กรุณาแจ้งยกเลิก เพื่อให้ผู้อื่นได้ที่นั่งแทน</p>
+      <button class="btn ghost" type="button" id="cancelRegBtn">ลงทะเบียนไว้แล้ว ต้องการแจ้งยกเลิก</button>
+    </section>
+
+    <form id="form" novalidate hidden>
+      <ol class="steps" id="stepper" aria-label="ขั้นตอน"></ol>
+
+      <div class="card error" id="stepError" role="alert" hidden></div>
+
+      <!-- หน้า 1 PDPA -->
+      <section class="card step" data-step="consent" data-title="ความยินยอม">
+        <h2>การให้ความยินยอมเก็บรวบรวมและใช้ข้อมูลส่วนบุคคล</h2>
+        <div class="pdpa">
+          <p>ข้าพเจ้ายินยอมให้<span class="js-org">กรมอนามัย</span> เก็บรวบรวม ใช้ และประมวลผลข้อมูลส่วนบุคคล ได้แก่ คำนำหน้า ชื่อ-นามสกุล ตำแหน่ง หน่วยงานต้นสังกัด จังหวัด หมายเลขโทรศัพท์ อีเมล ข้อมูลอาหารและการแพ้อาหาร และข้อมูลการเดินทางและที่พัก (กรณีประชุมเชิงปฏิบัติการ)</p>
+          <p>เพื่อใช้ในการลงทะเบียนเข้าร่วมประชุม การติดต่อประสานงาน การจัดเตรียมสถานที่ อาหาร และที่พัก และการจัดทำเอกสารประกอบการเบิกจ่ายงบประมาณ โดยจะไม่นำไปใช้เพื่อวัตถุประสงค์อื่น</p>
+          <p>ข้อมูลจะถูกเก็บรักษาไว้เป็นระยะเวลา <b><span id="pdpaYears">5</span> ปี</b> นับจากวันประชุม แล้วจึงลบหรือทำลาย ท่านมีสิทธิถอนความยินยอม ขอเข้าถึง แก้ไข หรือขอให้ลบข้อมูลได้ตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 <span id="pdpaLinkWrap">รายละเอียดเพิ่มเติม <a id="pdpaLink" target="_blank" rel="noopener">นโยบายคุ้มครองข้อมูลส่วนบุคคล</a></span></p>
+        </div>
+        <fieldset>
+          <legend>ท่านรับทราบและยินยอมตามข้างต้น <span class="req">*</span></legend>
+          <label class="choice"><input type="radio" name="consent" value="ยินยอม"> ยินยอม</label>
+          <label class="choice"><input type="radio" name="consent" value="ไม่ยินยอม"> ไม่ยินยอม</label>
+        </fieldset>
+      </section>
+
+      <!-- หน้า 2 ข้อมูลผู้เข้าร่วม -->
+      <section class="card step" data-step="person" data-title="ข้อมูลผู้เข้าร่วม" hidden>
+        <h2>ข้อมูลผู้เข้าร่วมประชุม</h2>
+        <p class="hint">ข้อมูลนี้ใช้ประกอบการเบิกจ่ายงบประมาณ กรุณากรอกให้ตรงกับเอกสารราชการ</p>
+        <div class="grid">
+          <label class="field">คำนำหน้า <span class="req">*</span>
+            <select name="prefix" data-other="prefix_other"></select>
+            <input name="prefix_other" placeholder="ระบุคำนำหน้า" hidden>
+          </label>
+          <label class="field">ชื่อ <span class="req">*</span>
+            <input name="first_name" autocomplete="given-name">
+          </label>
+          <label class="field">นามสกุล <span class="req">*</span>
+            <input name="last_name" autocomplete="family-name">
+          </label>
+          <label class="field">ตำแหน่ง <span class="req">*</span>
+            <select name="position" data-other="position_other"></select>
+            <input name="position_other" placeholder="ระบุตำแหน่ง" hidden>
+          </label>
+          <label class="field wide">หน่วยงาน <span class="req">*</span>
+            <input name="unit" list="unitList" placeholder="พิมพ์เพื่อค้นหา หรือพิมพ์ชื่อหน่วยงานใหม่" autocomplete="organization">
+            <datalist id="unitList"></datalist>
+          </label>
+          <label class="field">จังหวัดที่ตั้งหน่วยงาน <span class="req">*</span>
+            <select name="province"></select>
+          </label>
+          <label class="field">เบอร์โทรศัพท์มือถือ <span class="req">*</span>
+            <input name="phone" type="tel" inputmode="numeric" placeholder="0812345678" autocomplete="tel">
+          </label>
+          <label class="field wide">อีเมล <span class="req">*</span>
+            <input name="email" type="email" placeholder="ใช้ส่งอีเมลยืนยันการลงทะเบียน" autocomplete="email">
+          </label>
+        </div>
+        <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      </section>
+
+      <!-- หน้า 3 การเข้าร่วม -->
+      <section class="card step" data-step="attend" data-title="การเข้าร่วม" hidden>
+        <h2>เงื่อนไขค่าใช้จ่ายของการประชุมนี้</h2>
+        <table class="expense" id="expenseTable"></table>
+        <p class="note" id="payNote" hidden></p>
+        <label class="choice ack"><input type="checkbox" name="ack_expense"> <span>ข้าพเจ้ารับทราบเงื่อนไขค่าใช้จ่ายข้างต้น <span class="req">*</span></span></label>
+
+        <h2>การเข้าร่วมประชุม</h2>
+        <fieldset id="attendOptions">
+          <legend>รูปแบบการเข้าร่วม <span class="req">*</span></legend>
+        </fieldset>
+
+        <div id="onsiteBlock" hidden>
+          <div class="grid">
+            <label class="field" id="foodField">ประเภทอาหาร <span class="req">*</span>
+              <select name="food" data-other="food_other"></select>
+              <input name="food_other" placeholder="ระบุประเภทอาหาร" hidden>
+            </label>
+            <label class="field">อาหารที่แพ้ (ถ้ามี)
+              <input name="allergy" placeholder="เช่น อาหารทะเล ถั่ว">
+            </label>
+          </div>
+        </div>
+
+        <div id="absentBlock" hidden>
+          <label class="field wide">หมายเหตุ (ถ้ามี)
+            <textarea name="absence_note" rows="3" placeholder="เช่น ติดราชการ หรือชื่อผู้ที่จะมาแทน (ผู้แทนกรอกแบบตอบรับเองด้วยลิงก์เดียวกัน)"></textarea>
+          </label>
+        </div>
+      </section>
+
+      <!-- หน้า 4 ที่พัก -->
+      <section class="card step" data-step="lodging" data-title="ที่พัก" hidden>
+        <h2>ที่พักและการเดินทาง</h2>
+        <p class="note" id="lodgingPay"></p>
+        <fieldset>
+          <legend id="needLodgingLegend">ท่านต้องการให้ผู้จัดจองที่พักหรือไม่ <span class="req">*</span></legend>
+          <label class="choice"><input type="radio" name="need_lodging" value="ต้องการ"> ต้องการ</label>
+          <label class="choice"><input type="radio" name="need_lodging" value="ไม่ต้องการ"> ไม่ต้องการ (จัดหาเอง)</label>
+        </fieldset>
+
+        <div id="lodgingDetails" hidden>
+          <div class="grid">
+            <label class="field">วันเข้าพัก <span class="req">*</span>
+              <input type="date" name="check_in">
+            </label>
+            <label class="field">วันออก <span class="req">*</span>
+              <input type="date" name="check_out">
+            </label>
+          </div>
+          <fieldset>
+            <legend>ประเภทห้องพัก <span class="req">*</span></legend>
+            <label class="choice"><input type="radio" name="room_type" value="พักคู่"> พักคู่</label>
+            <label class="choice"><input type="radio" name="room_type" value="พักเดี่ยว"> พักเดี่ยว</label>
+          </fieldset>
+          <label class="field wide" id="roommateField" hidden>ชื่อผู้พักร่วม (ถ้ามี)
+            <input name="roommate" placeholder="ถ้าไม่ระบุ ผู้จัดจะจัดผู้พักร่วมให้">
+          </label>
+        </div>
+
+        <fieldset id="travelOptions">
+          <legend>การเดินทาง (เลือกได้มากกว่า 1 ข้อ) <span class="req">*</span></legend>
+        </fieldset>
+        <label class="field wide travel-other" id="travelOtherField" hidden>ระบุการเดินทางอื่น ๆ <span class="req">*</span>
+          <input name="travel_other" placeholder="เช่น รถตู้เช่า">
+        </label>
+        <label class="field wide">หมายเหตุ (ถ้ามี)
+          <input name="lodging_note" placeholder="เช่น เดินทางถึงดึก ต้องการที่จอดรถ">
+        </label>
+      </section>
+
+      <nav class="nav">
+        <button type="button" class="btn ghost" id="backBtn">ย้อนกลับ</button>
+        <button type="button" class="btn primary" id="nextBtn">ต่อไป</button>
+      </nav>
+    </form>
+
+    <section class="card" id="done" hidden>
+      <h2 id="doneTitle">ส่งแบบตอบรับเรียบร้อยแล้ว</h2>
+      <p id="doneText"></p>
+      <table class="summary" id="doneSummary"></table>
+      <p class="hint" id="doneEdit"></p>
+    </section>
+
+    <footer class="foot" id="foot"></footer>
+  </main>
+
+  <script src="/config.js"></script>
+  <script src="/provinces.js"></script>
+  <script src="/mock.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

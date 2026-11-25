@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0d838d">
+  <link rel="preload" href="/fonts/LINESeedSansTH_W_Rg.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/LINESeedSansTH_W_Bd.woff2" as="font" type="font/woff2" crossorigin>
+  <meta name="robots" content="noindex, nofollow">
+  <title>ผู้ดูแลระบบตอบรับการประชุม</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/admin.css">
+</head>
+<body>
+  <main class="wrap wide-wrap">
+    <!-- เข้าสู่ระบบ -->
+    <section class="card login" id="loginView">
+      <h1>ผู้ดูแลระบบตอบรับการประชุม</h1>
+      <form id="loginForm">
+        <label class="field">รหัสผู้ดูแล
+          <input type="password" name="key" autocomplete="current-password" required>
+        </label>
+        <p class="form-error" id="loginError" hidden></p>
+        <button class="btn primary" type="submit">เข้าสู่ระบบ</button>
+      </form>
+    </section>
+
+    <div id="appView" hidden>
+      <header class="admin-top">
+        <h1>ผู้ดูแลระบบตอบรับการประชุม</h1>
+        <button class="btn ghost small" id="logoutBtn" type="button">ออกจากระบบ</button>
+      </header>
+
+      <nav class="tabs" role="tablist">
+        <button type="button" role="tab" data-tab="meetings" class="active">การประชุม</button>
+        <button type="button" role="tab" data-tab="lists">ตัวเลือกในฟอร์ม</button>
+        <button type="button" role="tab" data-tab="units">หน่วยงาน</button>
+        <button type="button" role="tab" data-tab="config">ตั้งค่าทั่วไป</button>
+      </nav>
+
+      <!-- การประชุม: รายการ -->
+      <section class="tab-panel" data-panel="meetings">
+        <div id="meetingList">
+          <section class="card link-panel" id="linkPanel" hidden>
+            <div class="link-head">
+              <h2>ลิงก์แบบตอบรับ</h2>
+              <button class="btn ghost small" type="button" id="closeLinkPanel">ปิด</button>
+            </div>
+            <p class="mname" id="linkMeetingName"></p>
+            <div class="link-row">
+              <input id="linkInput" readonly aria-label="ลิงก์แบบตอบรับ">
+              <button class="btn primary small" type="button" id="copyLinkBtn">คัดลอกลิงก์</button>
+              <a class="btn ghost small" id="openLinkBtn" target="_blank" rel="noopener">เปิดฟอร์ม</a>
+            </div>
+            <label class="field wide">ข้อความสำหรับวางในหนังสือเชิญ
+              <textarea id="inviteText" rows="3" readonly></textarea>
+            </label>
+            <button class="btn ghost small" type="button" id="copyInviteBtn">คัดลอกข้อความ</button>
+          </section>
+          <div class="toolbar">
+            <p class="hint" id="meetingCount"></p>
+            <button class="btn primary" type="button" id="newMeetingBtn">+ เพิ่มการประชุม</button>
+          </div>
+          <div class="card flush">
+            <div class="table-scroll">
+              <table class="data" id="meetingTable">
+                <thead>
+                  <tr>
+                    <th>การประชุม</th><th>วันที่</th><th>สถานะ</th>
+                    <th class="num">On-site</th><th class="num">Online</th><th class="num">ไม่มา</th><th class="num">ที่พัก</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- การประชุม: แก้ไข -->
+        <form class="card" id="meetingForm" hidden novalidate>
+          <h2 id="meetingFormTitle">เพิ่มการประชุม</h2>
+          <div class="grid">
+            <label class="field">รหัสประชุม <span class="hint-inline" id="idHint">ระบบออกให้อัตโนมัติ</span>
+              <input name="id" readonly tabindex="-1" class="readonly">
+              <span class="link-preview" id="linkPreview"></span>
+            </label>
+            <label class="field">ประเภท <span class="req">*</span>
+              <select name="type">
+                <option value="meeting">ประชุม</option>
+                <option value="workshop">ประชุมเชิงปฏิบัติการ</option>
+              </select>
+            </label>
+            <label class="field wide">ชื่อการประชุม <span class="req">*</span>
+              <input name="name">
+            </label>
+            <label class="field">รูปแบบการเข้าร่วม <span class="req">*</span>
+              <select name="attend_mode">
+                <option value="hybrid">On-site และ Online</option>
+                <option value="onsite">On-site อย่างเดียว</option>
+                <option value="online">Online อย่างเดียว</option>
+              </select>
+            </label>
+            <label class="field" id="capacityField">จำนวนที่นั่ง On-site
+              <input type="number" name="capacity" min="0" placeholder="ว่าง = ไม่จำกัด">
+            </label>
+            <label class="field">วันเริ่ม <span class="req">*</span>
+              <input type="date" name="date_start">
+            </label>
+            <label class="field">วันสิ้นสุด
+              <input type="date" name="date_end">
+            </label>
+            <label class="field wide">วันที่ที่แสดงในฟอร์ม
+              <input name="date_text" placeholder="ระบบเติมให้จากวันเริ่ม–วันสิ้นสุด แก้ได้">
+            </label>
+            <label class="field wide">สถานที่
+              <input name="venue">
+            </label>
+            <label class="field">วันปิดรับ
+              <input type="date" name="close_date">
+            </label>
+            <label class="field">สถานะ
+              <select name="status">
+                <option value="เปิด">เปิดรับ</option>
+                <option value="ปิด">ปิดรับ</option>
+              </select>
+            </label>
+          </div>
+
+          <h2>เงื่อนไขค่าใช้จ่าย</h2>
+          <p class="hint">ผู้เข้าร่วมจะเห็นเงื่อนไขนี้ในแบบตอบรับและอีเมลยืนยัน</p>
+          <div class="grid three">
+            <label class="field">ค่าอาหารและอาหารว่าง
+              <select name="pay_food" class="js-pay"></select>
+            </label>
+            <label class="field">ค่าที่พัก
+              <select name="pay_lodging" class="js-pay"></select>
+            </label>
+            <label class="field">ค่าพาหนะเดินทาง
+              <select name="pay_travel" class="js-pay"></select>
+            </label>
+            <label class="field wide">หมายเหตุค่าใช้จ่าย
+              <textarea name="pay_note" rows="2" placeholder="เช่น ผู้จัดรับผิดชอบค่าที่พักห้องพักคู่ ผู้ที่เลือกพักเดี่ยวชำระส่วนต่างเอง"></textarea>
+            </label>
+          </div>
+
+          <div id="onlineSection">
+            <h2>ข้อมูลเข้าร่วมประชุมออนไลน์</h2>
+            <p class="hint">ไม่แสดงในแบบตอบรับ ระบบส่งทางอีเมลให้เฉพาะผู้ที่เลือกเข้าร่วมแบบ Online ถ้ายังไม่มีลิงก์ เว้นว่างไว้ก่อน แล้วกดส่งภายหลังจากหน้ารายชื่อ</p>
+            <div class="grid">
+              <label class="field">ชื่อระบบ
+                <input name="online_platform" list="platformList" placeholder="เช่น Zoom, Microsoft Teams">
+                <datalist id="platformList">
+                  <option value="Zoom"></option>
+                  <option value="Microsoft Teams"></option>
+                  <option value="Google Meet"></option>
+                  <option value="Webex"></option>
+                </datalist>
+              </label>
+              <label class="field">ลิงก์เข้าร่วม
+                <input name="online_link" type="url" placeholder="https://">
+              </label>
+              <label class="field">User / Meeting ID
+                <input name="online_user" autocomplete="off">
+              </label>
+              <label class="field">Password / Passcode
+                <input name="online_password" autocomplete="off">
+              </label>
+            </div>
+          </div>
+
+          <p class="form-error" id="meetingError" hidden></p>
+          <div class="nav">
+            <div>
+              <button class="btn ghost" type="button" id="cancelMeetingBtn">ยกเลิก</button>
+              <button class="btn danger" type="button" id="deleteMeetingBtn" hidden>ลบ</button>
+            </div>
+            <button class="btn primary" type="submit">บันทึก</button>
+          </div>
+        </form>
+
+        <!-- การประชุม: รายชื่อ -->
+        <section id="responseView" hidden>
+          <div class="toolbar">
+            <button class="btn ghost small" type="button" id="backToListBtn">← กลับ</button>
+            <div class="toolbar-right">
+              <button class="btn ghost small" type="button" id="sendOnlineBtn" hidden>ส่งข้อมูลประชุมออนไลน์ทางอีเมล</button>
+              <button class="btn primary small" type="button" id="csvBtn">ดาวน์โหลด CSV</button>
+            </div>
+          </div>
+          <h2 id="responseTitle"></h2>
+          <p class="hint" id="responseCount"></p>
+          <div class="card flush">
+            <div class="table-scroll">
+              <table class="data" id="responseTable"><thead></thead><tbody></tbody></table>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <!-- ตัวเลือกในฟอร์ม -->
+      <section class="tab-panel card" data-panel="lists" hidden>
+        <h2>ตัวเลือกในแบบตอบรับ</h2>
+        <p class="hint">หนึ่งบรรทัดต่อหนึ่งตัวเลือก ระบบเพิ่ม "อื่น ๆ (ระบุ)" ให้เองทุกรายการ</p>
+        <div class="grid">
+          <label class="field">คำนำหน้า<textarea name="prefix" rows="8"></textarea></label>
+          <label class="field">ตำแหน่ง<textarea name="position" rows="8"></textarea></label>
+          <label class="field">ประเภทอาหาร<textarea name="food" rows="6"></textarea></label>
+          <label class="field">การเดินทาง<textarea name="travel" rows="6"></textarea></label>
+        </div>
+        <button class="btn primary" type="button" id="saveListsBtn">บันทึกตัวเลือก</button>
+      </section>
+
+      <!-- หน่วยงาน -->
+      <section class="tab-panel card" data-panel="units" hidden>
+        <h2>รายชื่อหน่วยงาน</h2>
+        <p class="hint">หนึ่งบรรทัดต่อหนึ่งหน่วยงาน ระบบรวมกับหน่วยงานที่ผู้ตอบเคยพิมพ์เข้ามาให้อัตโนมัติ</p>
+        <label class="field wide"><span id="unitCount"></span>
+          <textarea name="units" rows="18"></textarea>
+        </label>
+        <button class="btn primary" type="button" id="saveUnitsBtn">บันทึกหน่วยงาน</button>
+      </section>
+
+      <!-- ตั้งค่าทั่วไป -->
+      <section class="tab-panel card" data-panel="config" hidden>
+        <h2>ตั้งค่าทั่วไป</h2>
+        <div class="grid">
+          <label class="field">ชื่อหน่วยงานผู้จัด<input name="org_name"></label>
+          <label class="field">ตัวอักษรนำหน้ารหัสประชุม<input name="meeting_id_prefix" maxlength="10" placeholder="HIA"></label>
+          <label class="field">เบอร์ติดต่อ<input name="contact_phone"></label>
+          <label class="field">ชื่อผู้ส่งอีเมลยืนยัน<input name="email_sender_name"></label>
+          <label class="field">ระยะเวลาเก็บข้อมูล PDPA (ปี)<input type="number" name="pdpa_retention_years" min="1" max="20"></label>
+          <label class="field wide">ลิงก์นโยบายคุ้มครองข้อมูลส่วนบุคคล<input name="pdpa_policy_url"></label>
+          <label class="field wide">ที่อยู่เว็บแบบตอบรับ (ใช้สร้างลิงก์ในชีต)<input name="site_url"></label>
+        </div>
+        <button class="btn primary" type="button" id="saveConfigBtn">บันทึกการตั้งค่า</button>
+      </section>
+    </div>
+
+    <div class="toast" id="toast" role="status" hidden></div>
+    <footer class="foot" id="foot"></footer>
+  </main>
+
+  <script src="/config.js"></script>
+  <script src="/mock.js"></script>
+  <script src="/admin.js"></script>
+</body>
+</html>

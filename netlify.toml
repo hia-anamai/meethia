@@ -1,0 +1,21 @@
+[build]
+  publish = "public"
+
+# ลิงก์สั้นของแต่ละประชุม: /m/WS-02-2570 → หน้าแบบตอบรับ
+[[redirects]]
+  from = "/m/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://script.google.com https://script.googleusercontent.com; img-src 'self' data:; form-action 'none'; frame-ancestors 'none'"
+
+[[headers]]
+  for = "/config.js"
+  [headers.values]
+    Cache-Control = "no-cache"
