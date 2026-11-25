@@ -49,6 +49,16 @@
 
 ### 1. Google Sheet + Apps Script
 
+**ด้วย clasp (ตั้งไว้แล้ว):** โปรเจกต์ผูกกับ Sheet "ระบบตอบรับการประชุม" ในบัญชี hfd.anamai@gmail.com ผ่าน `.clasp.json`
+
+```powershell
+clasp push
+```
+
+ส่ง `apps-script/Code.gs` และ `appsscript.json` ขึ้นไป (`.claspignore` กันไฟล์อื่น) จากนั้นทำข้อ 4–7 ด้านล่างใน editor (`clasp open-script`) ครั้งแรก deploy ด้วย `clasp deploy --description "v1"` ครั้งต่อไปใช้ `clasp deploy -i <Deployment ID เดิม>` เพื่อให้ URL ไม่เปลี่ยน
+
+**หรือทำเองทีละขั้น:**
+
 1. สร้าง Google Sheet ใหม่ (ใช้บัญชีของหน่วยงาน อีเมลยืนยันจะส่งจากบัญชีนี้)
 2. เมนู **ส่วนขยาย → Apps Script** ลบโค้ดเดิม แล้ววางเนื้อหา `apps-script/Code.gs`
 3. ที่ **การตั้งค่าโปรเจ็กต์** ติ๊ก "แสดงไฟล์ appsscript.json" แล้ววางเนื้อหา `apps-script/appsscript.json`
