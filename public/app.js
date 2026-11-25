@@ -28,6 +28,67 @@
 
   const MODE_LABEL = { hybrid: 'On-site และ Online', onsite: 'On-site', online: 'Online' };
 
+  /* ระดับตำแหน่งข้าราชการพลเรือนสามัญ (ก.พ.) แยกตามประเภทตำแหน่ง */
+  const NO_LEVEL = '-';
+  const LV = {
+    academic: ['ปฏิบัติการ', 'ชำนาญการ', 'ชำนาญการพิเศษ', 'เชี่ยวชาญ'],
+    expert: ['ปฏิบัติการ', 'ชำนาญการ', 'ชำนาญการพิเศษ', 'เชี่ยวชาญ', 'ทรงคุณวุฒิ'],
+    general: ['ปฏิบัติงาน', 'ชำนาญงาน', 'อาวุโส', 'ทักษะพิเศษ'],
+    director: ['อำนวยการต้น', 'อำนวยการสูง'],
+    executive: ['บริหารต้น', 'บริหารสูง'],
+  };
+  const LV_GROUP = {
+    academic: 'ประเภทวิชาการ', expert: 'ประเภทวิชาการ', general: 'ประเภททั่วไป',
+    director: 'ประเภทอำนวยการ', executive: 'ประเภทบริหาร',
+  };
+  const POSITION_LEVELS = {
+    'ผู้อำนวยการ': ['director', 'expert'],
+    'รองผู้อำนวยการ': ['expert'],
+    'หัวหน้ากลุ่มงาน': ['expert'],
+    'แพทย์': ['expert'],
+    'ทันตแพทย์': ['expert'],
+    'เภสัชกร': ['expert'],
+    'นักวิชาการสาธารณสุข': ['expert'],
+  };
+  // ตำแหน่งบริหารจัดการ ต่อท้ายระดับในวงเล็บ ตำแหน่งในสายงานต่อท้ายติดกัน เช่น นักวิชาการสาธารณสุขชำนาญการ
+  const isManagerTitle = (p) => /^(ผู้อำนวยการ|รองผู้อำนวยการ|หัวหน้า)/.test(p);
+
+  function levelGroupsFor(pos) {
+    if (POSITION_LEVELS[pos]) return POSITION_LEVELS[pos];
+    if (/^(เจ้าพนักงาน|เจ้าหน้าที่|นายช่าง|ช่าง)/.test(pos)) return ['general'];
+    if (/^(นัก|พยาบาล|นิติกร)/.test(pos)) return ['academic'];
+    return ['expert', 'general', 'director', 'executive'];
+  }
+
+  function fillLevel() {
+    const sel = field('level');
+    const posSel = field('position');
+    const pos = selectValue('position');
+    sel.innerHTML = '';
+    if (!posSel.value) {
+      sel.append(new Option('— เลือกตำแหน่งก่อน —', ''));
+      sel.disabled = true;
+      return;
+    }
+    sel.disabled = false;
+    sel.append(new Option('— เลือกระดับ —', ''));
+    const groups = posSel.value === OTHER ? ['expert', 'general', 'director', 'executive'] : levelGroupsFor(pos);
+    groups.forEach((g) => {
+      const og = document.createElement('optgroup');
+      og.label = LV_GROUP[g];
+      LV[g].forEach((v) => og.append(new Option(v, v)));
+      sel.append(og);
+    });
+    sel.append(new Option('ไม่มีระดับ (พนักงานราชการ / ลูกจ้าง / อื่น ๆ)', NO_LEVEL));
+  }
+
+  function positionWithLevel() {
+    const pos = selectValue('position');
+    const lv = field('level').value;
+    if (!lv || lv === NO_LEVEL) return pos;
+    return isManagerTitle(pos) ? pos + ' (' + lv + ')' : pos + lv;
+  }
+
   /* ---------------------------------------------------------------- API */
 
   async function apiInit(id) {
@@ -319,6 +380,7 @@
       if (!text('first_name')) return fail('กรุณากรอกชื่อ', 'first_name');
       if (!text('last_name')) return fail('กรุณากรอกนามสกุล', 'last_name');
       if (!requireSelect('position', 'ตำแหน่ง')) return false;
+      if (!field('level').value) return fail('กรุณาเลือกระดับ', 'level');
       if (!text('unit')) return fail('กรุณากรอกหน่วยงาน', 'unit');
       if (!field('province').value) return fail('กรุณาเลือกจังหวัด', 'province');
       const phone = text('phone').replace(/[^0-9]/g, '');
@@ -364,7 +426,7 @@
       prefix: selectValue('prefix'),
       first_name: text('first_name'),
       last_name: text('last_name'),
-      position: selectValue('position'),
+      position: positionWithLevel(),
       unit: text('unit'),
       province: field('province').value,
       phone: text('phone').replace(/[^0-9]/g, ''),
@@ -539,6 +601,7 @@
 
     renderExpense();
 
+    field('position').addEventListener('change', fillLevel);
     form.addEventListener('change', updateConditional);
     $('#nextBtn').addEventListener('click', next);
     $('#backBtn').addEventListener('click', back);
