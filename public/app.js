@@ -506,7 +506,15 @@
 
     const btn = $('#nextBtn');
     btn.disabled = true;
-    btn.textContent = 'กำลังส่ง…';
+    $('#backBtn').disabled = true;
+    btn.textContent = '';
+    btn.append(Object.assign(document.createElement('span'), { className: 'spinner small on-dark' }), 'กำลังส่ง…');
+    form.classList.add('is-sending');
+    btn.classList.add('is-busy');
+    const stopHints = progressHints($('#submitHint'), [
+      [3000, 'กำลังบันทึกข้อมูลและส่งอีเมลยืนยัน'],
+      [9000, 'ยังทำงานอยู่ อาจใช้เวลาสักครู่ กรุณาอย่าปิดหน้านี้'],
+    ]);
     const data = collect();
     try {
       const res = await apiSubmit(data);
@@ -515,9 +523,19 @@
     } catch (err) {
       fail(err.message === 'Failed to fetch' ? 'เชื่อมต่อระบบไม่ได้ กรุณาลองใหม่อีกครั้ง' : err.message);
     } finally {
+      stopHints();
+      form.classList.remove('is-sending');
+      btn.classList.remove('is-busy');
       btn.disabled = false;
+      $('#backBtn').disabled = false;
       showStepLabelOnly();
     }
+  }
+
+  /** เปลี่ยนข้อความสถานะตามเวลาที่รอ คืนฟังก์ชันสำหรับหยุดและล้างข้อความ */
+  function progressHints(el, steps) {
+    const timers = steps.map(([ms, msg]) => setTimeout(() => { el.textContent = msg; }, ms));
+    return () => { timers.forEach(clearTimeout); el.textContent = ''; };
   }
 
   function showStepLabelOnly() {
@@ -534,10 +552,28 @@
   /* -------------------------------------------------------------- init */
 
   /** หน้าแรก: ชื่อหน่วยงานและเบอร์ติดต่อจากแท็บ config (แก้ได้ที่หน้าผู้ดูแล > ตั้งค่าทั่วไป) */
+  function applyWelcome(cfg) {
+    const org = cfg.org_name || 'กรมอนามัย';
+    $('#welcomeOrg').textContent = org;
+    $('#welcomeContactOrg').textContent = org;
+    document.title = 'ระบบตอบรับการประชุม · ' + org;
+    const card = $('#welcomePhone');
+    const phone = String(cfg.contact_phone || '').trim();
+    if (phone) {
+      $('#welcomePhoneText').textContent = 'โทร ' + phone;
+      card.href = 'tel:' + phone.replace(/[^0-9+]/g, '');
+      card.classList.remove('is-loading');
+      card.removeAttribute('aria-busy');
+    }
+    return phone;
+  }
+
   async function renderWelcome() {
-    // แสดงหน้าแรกทันที แล้วค่อยเติมชื่อหน่วยงานและเบอร์โทรเมื่อโหลดเสร็จ
+    // แสดงหน้าแรกทันที: ใช้ค่าที่จำไว้จากครั้งก่อน (ถ้ามี) ระหว่างรอ Apps Script ซึ่งอาจตอบช้าหลายวินาที
     $('#loading').hidden = true;
     $('#welcome').hidden = false;
+    const remembered = storageGet('rsvp_welcome');
+    if (remembered) applyWelcome(remembered);
     try {
       let data;
       if (useMock) data = await window.MOCK_API.init('');
@@ -545,22 +581,34 @@
         data = await fetch(apiUrl + '?action=config').then((r) => r.json());
         if (!data.ok || !data.config) data = await apiInit(''); // Apps Script รุ่นเก่ายังไม่มี action=config
       }
-      if (data && data.ok) config = data.config || {};
-    } catch (e) { /* แสดงหน้าแรกด้วยค่าเริ่มต้น */ }
-    const org = config.org_name || 'กรมอนามัย';
-    $('#welcomeOrg').textContent = org;
-    $('#welcomeContactOrg').textContent = org;
-    document.title = 'ระบบตอบรับการประชุม · ' + org;
-    const phone = String(config.contact_phone || '').trim();
-    if (phone) {
-      $('#welcomePhoneText').textContent = 'โทร ' + phone;
-      $('#welcomePhone').href = 'tel:' + phone.replace(/[^0-9+]/g, '');
-      $('#welcomePhone').hidden = false;
-    }
+      if (data && data.ok) {
+        config = data.config || {};
+        storageSet('rsvp_welcome', { org_name: config.org_name, contact_phone: config.contact_phone });
+      }
+    } catch (e) { /* แสดงหน้าแรกด้วยค่าที่มี */ }
+    const phone = applyWelcome(Object.keys(config).length ? config : (remembered || {}));
+    if (!phone) $('#welcomePhone').hidden = true; // ไม่มีเบอร์ให้แสดง ซ่อนการ์ด
+  }
+
+  function storageGet(key) {
+    try { return JSON.parse(window.localStorage.getItem(key) || 'null'); } catch (e) { return null; }
+  }
+
+  function storageSet(key, value) {
+    try { window.localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* ไม่เป็นไร */ }
   }
 
   async function init() {
     if (useMock) $('#foot').textContent = 'โหมดทดสอบ: ใช้ข้อมูลจำลอง ไม่มีการบันทึกจริง';
+    // ข้อความระหว่างรอ Apps Script (หยุดเองเมื่อซ่อนหน้าโหลด)
+    const stopLoadingHints = progressHints($('#loadingHint'), [
+      [2500, 'กำลังเชื่อมต่อกับระบบ อาจใช้เวลา 5–10 วินาที'],
+      [9000, 'ยังโหลดอยู่ ระบบใช้เวลานานขึ้นเมื่อไม่มีผู้ใช้มาสักพัก ขอบคุณที่รอ'],
+      [20000, 'ใช้เวลานานกว่าปกติ หากยังไม่ขึ้น ลองรีเฟรชหน้านี้'],
+    ]);
+    new MutationObserver((_, obs) => {
+      if ($('#loading').hidden) { stopLoadingHints(); obs.disconnect(); }
+    }).observe($('#loading'), { attributes: true, attributeFilter: ['hidden'] });
     if (!meetingId) {
       await renderWelcome();
       return;

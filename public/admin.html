@@ -21,6 +21,9 @@
       <h1>ผู้ดูแลระบบตอบรับการประชุม</h1>
       <p class="hint login-hint">เข้าสู่ระบบด้วยบัญชี Google ที่ได้รับสิทธิ์ผู้ดูแล</p>
       <div class="gsi-slot" id="gsiButton" aria-live="polite"></div>
+      <p class="login-status" id="loginStatus" role="status" hidden>
+        <span class="spinner small" aria-hidden="true"></span> กำลังตรวจสอบสิทธิ์ผู้ดูแล…
+      </p>
       <button class="btn primary" type="button" id="mockLoginBtn" hidden>เข้าสู่ระบบด้วย Google (จำลอง)</button>
       <p class="form-error" id="loginError" hidden></p>
     </section>
@@ -250,5 +253,6 @@
   <script src="/config.js"></script>
   <script src="/mock.js"></script>
   <script src="/admin.js"></script>
+  <script src="/help.js"></script>
 </body>
 </html>

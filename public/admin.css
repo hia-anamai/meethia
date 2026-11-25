@@ -293,3 +293,9 @@
 .admin-top h1, .tabs button, .data .mname, .pill, .link-head h2 {
   font-family: var(--font-display);
 }
+
+/* สถานะระหว่างโหลด (หน้าผู้ดูแล) */
+.login-status { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 8px 0 0; color: var(--ink-2); font-weight: 600; }
+#meetingCount, #responseCount { display: flex; align-items: center; gap: 8px; }
+.data .sk-line { margin: 4px 0; }
+.btn.small .spinner { margin-right: 6px; }

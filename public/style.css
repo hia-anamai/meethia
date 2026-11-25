@@ -126,22 +126,6 @@ h1, h2, h3 { letter-spacing: -0.01em; line-height: 1.35; }
   background: linear-gradient(135deg, var(--hero-from), var(--hero-to));
   box-shadow: var(--shadow-2);
 }
-.meeting::before,
-.meeting::after {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  border-radius: 50%;
-  filter: blur(8px);
-}
-.meeting::before {
-  width: 320px; height: 320px; right: -110px; top: -150px;
-  background: radial-gradient(circle, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 70%);
-}
-.meeting::after {
-  width: 220px; height: 220px; left: -80px; bottom: -130px;
-  background: radial-gradient(circle, rgba(127, 211, 227, .22), rgba(127, 211, 227, 0) 70%);
-}
 .eyebrow {
   margin: 0;
   display: inline-flex;
@@ -155,8 +139,8 @@ h1, h2, h3 { letter-spacing: -0.01em; line-height: 1.35; }
 .eyebrow::before {
   content: '';
   width: 8px; height: 8px; border-radius: 50%;
-  background: var(--orange-500);
-  box-shadow: 0 0 0 4px rgba(255, 255, 255, .2);
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, .22);
 }
 .meeting h1 { font-size: clamp(1.35rem, 3.6vw, 1.75rem); font-weight: 700; margin: 10px 0 18px; }
 .meta {
@@ -545,3 +529,134 @@ h1, h2, h3, legend,
 }
 .contact-label { display: block; font-size: .85rem; color: var(--ink-3); }
 .contact-value { display: block; font-size: 1.15rem; font-weight: 700; font-family: var(--font-display); color: var(--primary-hover); }
+/* การ์ดเบอร์โทรระหว่างรอ Apps Script: แสดงที่ไว้ก่อน หน้าไม่กระตุกเมื่อเบอร์มาถึง */
+.contact-card.is-loading { pointer-events: none; }
+.contact-card.is-loading .contact-value {
+  color: transparent;
+  border-radius: 8px;
+  width: 11em;
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--line) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .contact-card.is-loading .contact-value { animation: shimmer 1.2s linear infinite; }
+  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+}
+
+/* ------------------------------------------------- อนิเมชันระหว่างโหลด
+   Apps Script ใช้เวลาเริ่มทำงานหลายวินาที จึงแสดงโครงหน้า + วงหมุน + ข้อความสถานะ */
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes sk-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+.spinner {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 3px solid var(--primary-soft);
+  border-top-color: var(--primary);
+  animation: spin .8s linear infinite;
+}
+.spinner.on-dark { border-color: rgba(255, 255, 255, .35); border-top-color: #fff; }
+.spinner.small { width: 16px; height: 16px; border-width: 2px; }
+.btn .spinner { margin-right: 8px; vertical-align: -3px; }
+
+.sk {
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--line) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.4s linear infinite;
+}
+.meeting .sk {
+  background: linear-gradient(90deg, rgba(255,255,255,.12) 25%, rgba(255,255,255,.26) 50%, rgba(255,255,255,.12) 75%);
+  background-size: 200% 100%;
+}
+.sk-eyebrow { width: 180px; height: 14px; }
+.sk-title { width: 78%; height: 26px; margin-top: 16px; }
+.sk-title.short { width: 46%; margin-top: 10px; }
+.sk-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 10px; margin-top: 20px; }
+.sk-tile { height: 58px; border-radius: 14px; }
+.sk-line { height: 14px; margin: 10px 0; }
+.sk-line.w60 { width: 60%; } .sk-line.w80 { width: 80%; } .sk-line.w40 { width: 40%; }
+
+.loading-card { display: flex; align-items: center; gap: 16px; }
+.loading-title { margin: 0; font-weight: 600; font-family: var(--font-display); }
+.loading-card .hint { margin: 2px 0 0; min-height: 1.4em; }
+.loading-card .hint:not(:empty) { animation: fade-in .3s ease-out; }
+
+.submit-hint { text-align: right; margin: 10px 0 0; color: var(--ink-3); font-size: .9rem; }
+.submit-hint:not(:empty) { animation: fade-in .3s ease-out; }
+form.is-sending .step { opacity: .6; pointer-events: none; transition: opacity .2s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 2.4s; }
+  .sk { animation: none; }
+}
+/* ปุ่มที่กำลังทำงาน: คงสีเต็ม (ต่างจากปุ่มที่กดไม่ได้) */
+.btn.is-busy, .btn.is-busy:disabled { opacity: 1; cursor: progress; }
+
+/* ------------------------------------------------------ คู่มือ (ปุ่ม ?) */
+
+.help-fab {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 30;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--primary);
+  font: 700 1.35rem/1 'LINE Seed Sans TH', 'Google Sans', sans-serif;
+  box-shadow: var(--shadow-2);
+  cursor: pointer;
+  transition: background-color .15s, color .15s, border-color .15s;
+}
+.help-fab:hover { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
+.help-fab:focus-visible { outline: none; box-shadow: var(--ring), var(--shadow-2); }
+/* เว้นที่ท้ายหน้าไม่ให้ปุ่มทับเนื้อหา */
+.wrap { padding-bottom: 80px; }
+
+.help-dialog {
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(80vh, 640px);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 24px 60px rgba(10, 60, 66, .25);
+  overflow: hidden;
+}
+.help-dialog[open] { display: flex; flex-direction: column; }
+.help-dialog::backdrop { background: rgba(7, 58, 63, .45); }
+.help-head {
+  position: relative;
+  padding: 20px 56px 14px 22px;
+  background: var(--primary-wash);
+  border-bottom: 1px solid var(--line);
+}
+.help-eyebrow { margin: 0 0 2px; font-size: .8rem; font-weight: 600; color: var(--primary); font-family: 'LINE Seed Sans TH', sans-serif; }
+.help-head h2 { margin: 0; font-size: 1.15rem; }
+.help-close {
+  position: absolute; top: 12px; right: 12px;
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 0; background: transparent; color: var(--ink-2);
+  font-size: 1.5rem; line-height: 1; cursor: pointer;
+}
+.help-close:hover { background: var(--surface-2); color: var(--ink); }
+.help-close:focus-visible { outline: none; box-shadow: var(--ring); }
+.help-body { padding: 16px 22px; overflow-y: auto; line-height: 1.7; color: var(--ink-2); }
+.help-body p { margin: 0 0 10px; }
+.help-body ul { margin: 0 0 10px; padding-left: 20px; }
+.help-body li { margin-bottom: 6px; }
+.help-body b { color: var(--ink); }
+.help-foot { padding: 12px 22px 18px; display: flex; justify-content: flex-end; border-top: 1px solid var(--line); }
+.help-foot .btn { min-height: 42px; padding: 9px 22px; }
+@media (max-width: 560px) {
+  .help-foot .btn { width: 100%; }
+}

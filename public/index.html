@@ -42,18 +42,35 @@
           <li><span><b>รับอีเมลยืนยัน</b> พร้อมรายละเอียดการประชุม</span></li>
         </ol>
         <p class="hint">หากไม่ได้รับลิงก์ หรือมีข้อสงสัยเกี่ยวกับการประชุม กรุณาติดต่อ</p>
-        <a class="contact-card" id="welcomePhone" hidden>
+        <a class="contact-card is-loading" id="welcomePhone" aria-busy="true">
           <span class="contact-icon" aria-hidden="true"></span>
           <span>
             <span class="contact-label" id="welcomeContactOrg">กรมอนามัย</span>
-            <span class="contact-value" id="welcomePhoneText"></span>
+            <span class="contact-value" id="welcomePhoneText">กำลังโหลดเบอร์ติดต่อ</span>
           </span>
         </a>
       </section>
     </div>
 
-    <section class="card" id="loading">
-      <p>กำลังโหลดข้อมูลการประชุม…</p>
+    <section id="loading" aria-live="polite">
+      <div class="meeting" aria-hidden="true">
+        <span class="sk sk-eyebrow"></span>
+        <span class="sk sk-title"></span>
+        <span class="sk sk-title short"></span>
+        <div class="sk-meta"><span class="sk sk-tile"></span><span class="sk sk-tile"></span><span class="sk sk-tile"></span></div>
+      </div>
+      <div class="card loading-card">
+        <span class="spinner" aria-hidden="true"></span>
+        <div>
+          <p class="loading-title">กำลังโหลดข้อมูลการประชุม</p>
+          <p class="hint" id="loadingHint"></p>
+        </div>
+      </div>
+      <div class="card" aria-hidden="true">
+        <span class="sk sk-line w40"></span>
+        <span class="sk sk-line w80"></span>
+        <span class="sk sk-line w60"></span>
+      </div>
     </section>
 
     <section class="card notice" id="fatal" hidden>
@@ -202,6 +219,7 @@
         <button type="button" class="btn ghost" id="backBtn">ย้อนกลับ</button>
         <button type="button" class="btn primary" id="nextBtn">ต่อไป</button>
       </nav>
+      <p class="submit-hint" id="submitHint" aria-live="polite"></p>
     </form>
 
     <section class="card" id="done" hidden>
@@ -218,5 +236,6 @@
   <script src="/provinces.js"></script>
   <script src="/mock.js"></script>
   <script src="/app.js"></script>
+  <script src="/help.js"></script>
 </body>
 </html>

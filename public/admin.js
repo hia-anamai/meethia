@@ -140,11 +140,35 @@
     return n;
   }
 
-  async function withBusy(btn, fn) {
+  async function withBusy(btn, fn, busyText) {
     const label = btn.textContent;
     btn.disabled = true;
-    btn.textContent = 'กำลังบันทึก…';
-    try { await fn(); } finally { btn.disabled = false; btn.textContent = label; }
+    btn.textContent = '';
+    const dark = btn.classList.contains('primary');
+    btn.classList.add('is-busy');
+    btn.append(spinnerEl(dark), busyText || 'กำลังบันทึก…');
+    try { await fn(); } finally { btn.disabled = false; btn.classList.remove('is-busy'); btn.textContent = label; }
+  }
+
+  function spinnerEl(onDark) {
+    return el('span', { class: 'spinner small' + (onDark ? ' on-dark' : ''), 'aria-hidden': 'true' });
+  }
+
+  /** แถวโครงตารางระหว่างรอข้อมูล */
+  function skeletonRows(tbody, cols, rows) {
+    tbody.innerHTML = '';
+    for (let i = 0; i < (rows || 3); i++) {
+      const tr = el('tr', { 'aria-hidden': 'true' });
+      for (let c = 0; c < cols; c++) {
+        tr.append(el('td', {}, [el('span', { class: 'sk sk-line' + (c === 0 ? ' w80' : ' w60') })]));
+      }
+      tbody.append(tr);
+    }
+  }
+
+  function setLoginStatus(on) {
+    $('#loginStatus').hidden = !on;
+    $('#gsiButton').style.display = on ? 'none' : '';
   }
 
   /* --------------------------------------------------------------- login */
@@ -158,11 +182,21 @@
   async function login(token) {
     idToken = token;
     showLoginError('');
-    const res = await call('login');
+    setLoginStatus(true);
+    let res;
+    try {
+      res = await call('login');
+    } finally {
+      setLoginStatus(false);
+    }
     storage((s) => s.setItem('rsvp_admin_token', token));
     $('#whoEmail').textContent = res.email || '';
     $('#loginView').hidden = true;
     $('#appView').hidden = false;
+    // แสดงโครงตารางระหว่างโหลดรายการประชุม
+    $('#meetingCount').textContent = '';
+    $('#meetingCount').append(spinnerEl(false), ' กำลังโหลดรายการประชุม…');
+    skeletonRows($('#meetingTable tbody'), 7, 3);
     await reload();
   }
 
@@ -394,9 +428,10 @@
 
   async function openResponses(m) {
     $('#responseTitle').textContent = m.name;
-    $('#responseCount').textContent = 'กำลังโหลด…';
+    $('#responseCount').textContent = '';
+    $('#responseCount').append(spinnerEl(false), ' กำลังโหลดรายชื่อ…');
     $('#responseTable thead').innerHTML = '';
-    $('#responseTable tbody').innerHTML = '';
+    skeletonRows($('#responseTable tbody'), 6, 4);
     const sendBtn = $('#sendOnlineBtn');
     const mode = m.attend_mode || (m.type === 'workshop' ? 'onsite' : 'hybrid');
     sendBtn.hidden = mode === 'onsite' || !m.counts.online;
