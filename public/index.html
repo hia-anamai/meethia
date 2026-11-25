@@ -27,6 +27,31 @@
       <span class="badge" id="meetingMode"></span>
     </header>
 
+    <!-- หน้าแรก (เปิดเว็บโดยไม่มีรหัสประชุม) -->
+    <div id="welcome" hidden>
+      <header class="meeting welcome-hero">
+        <p class="eyebrow">ระบบตอบรับการเข้าร่วมประชุม</p>
+        <h1>ยินดีต้อนรับ</h1>
+        <p class="welcome-org" id="welcomeOrg">กรมอนามัย</p>
+      </header>
+      <section class="card">
+        <h2>วิธีตอบรับการประชุม</h2>
+        <ol class="welcome-steps">
+          <li><span><b>เปิดลิงก์แบบตอบรับ</b> ที่แนบมากับหนังสือเชิญ แต่ละการประชุมมีลิงก์ของตัวเอง</span></li>
+          <li><span><b>กรอกข้อมูลผู้เข้าร่วม</b> และเลือกรูปแบบการเข้าร่วม</span></li>
+          <li><span><b>รับอีเมลยืนยัน</b> พร้อมรายละเอียดการประชุม</span></li>
+        </ol>
+        <p class="hint">หากไม่ได้รับลิงก์ หรือมีข้อสงสัยเกี่ยวกับการประชุม กรุณาติดต่อ</p>
+        <a class="contact-card" id="welcomePhone" hidden>
+          <span class="contact-icon" aria-hidden="true"></span>
+          <span>
+            <span class="contact-label" id="welcomeContactOrg">กรมอนามัย</span>
+            <span class="contact-value" id="welcomePhoneText"></span>
+          </span>
+        </a>
+      </section>
+    </div>
+
     <section class="card" id="loading">
       <p>กำลังโหลดข้อมูลการประชุม…</p>
     </section>

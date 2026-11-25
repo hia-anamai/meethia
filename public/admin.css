@@ -22,15 +22,21 @@
 }
 .login h1 { font-size: 1.4rem; margin: 0 0 6px; }
 .login h1::after {
-  content: 'เข้าสู่ระบบด้วยรหัสผู้ดูแล';
+  content: none;
   display: block;
   font-size: .92rem;
   font-weight: 400;
   color: var(--ink-3);
   margin-top: 4px;
 }
-.login form { margin-top: 24px; }
+.login .login-hint { margin: 20px 0 16px; }
+.login .gsi-slot { display: flex; justify-content: center; min-height: 44px; }
+.login .gsi-slot:empty { display: none; }
 .login .btn { width: 100%; margin-top: 16px; }
+.login .form-error { margin-top: 16px; }
+.who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.who-email { font-size: .85rem; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 720px) { .who-email { display: none; } }
 
 /* --------------------------------------------------------- app bar */
 

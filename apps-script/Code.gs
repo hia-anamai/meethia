@@ -91,6 +91,14 @@ function doGet(e) {
         config: publicConfig_(),
       });
     }
+    if (action === 'config') {
+      // หน้าแรก: ชื่อหน่วยงานและเบอร์ติดต่ออย่างเดียว (ไม่อ่านรายชื่อหน่วยงาน/คำตอบ จึงเร็วกว่า init)
+      return json_({ ok: true, config: publicConfig_() });
+    }
+    if (action === 'adminInit') {
+      // Client ID ไม่ใช่ความลับ หน้าผู้ดูแลต้องใช้เพื่อแสดงปุ่ม Sign in with Google
+      return json_({ ok: true, clientId: String(getConfig_().google_client_id || '').trim() });
+    }
     return json_({ ok: false, error: 'ไม่รู้จักคำสั่ง' });
   } catch (err) {
     return json_({ ok: false, error: 'ระบบขัดข้อง: ' + err.message });
@@ -125,6 +133,7 @@ function register_(body) {
 
     const result = upsertResponse_(r.data, meeting);
     if (result.error) return json_({ ok: false, error: result.error });
+    invalidateUnits_(r.data.unit);
 
     let emailSent = false;
     try {
@@ -257,7 +266,36 @@ function seatInfo_(m, rows) {
   return { capacity: cap, seats_left: left, full: left <= 0 };
 }
 
+// รายชื่อหน่วยงานเก็บไว้ชั่วคราว 10 นาที เพื่อไม่ต้องอ่านแท็บ responses ทั้งแท็บทุกครั้งที่มีคนเปิดฟอร์ม
+const UNITS_CACHE_KEY = 'units_v1';
+const UNITS_CACHE_SECONDS = 600;
+
 function getUnits_() {
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get(UNITS_CACHE_KEY);
+  if (hit) {
+    try { return JSON.parse(hit); } catch (e) { /* อ่านใหม่จากชีต */ }
+  }
+  const list = readUnits_();
+  try {
+    cache.put(UNITS_CACHE_KEY, JSON.stringify(list), UNITS_CACHE_SECONDS);
+  } catch (e) {
+    // ค่าที่ใหญ่เกิน 100 KB เก็บใน cache ไม่ได้ ก็อ่านจากชีตทุกครั้งแทน
+  }
+  return list;
+}
+
+/** ล้าง cache เมื่อมีหน่วยงานใหม่ ให้รายการในฟอร์มอัปเดตทันที */
+function invalidateUnits_(unit) {
+  const cache = CacheService.getScriptCache();
+  if (unit) {
+    const hit = cache.get(UNITS_CACHE_KEY);
+    if (hit && JSON.parse(hit).indexOf(unit) >= 0) return; // มีอยู่แล้ว ไม่ต้องล้าง
+  }
+  cache.remove(UNITS_CACHE_KEY);
+}
+
+function readUnits_() {
   const set = {};
   readTable_(SHEET.UNITS).forEach(function (r) {
     const u = String(r.unit || '').trim();
@@ -602,24 +640,26 @@ function setup() {
 
   ss.setActiveSheet(mt);
 
-  const props = PropertiesService.getScriptProperties();
-  if (!props.getProperty('ADMIN_KEY')) {
-    props.setProperty('ADMIN_KEY', Utilities.getUuid().replace(/-/g, '').slice(0, 12));
-  }
-  return 'ตั้งค่าเสร็จแล้ว ' + showAdminKey();
-}
+  // เพิ่มค่าที่ยังไม่มีใน config (รัน setup ซ้ำกับชีตเดิมได้ ไม่ทับค่าที่มีอยู่)
+  const owner = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
+  const have = readTable_(SHEET.CONFIG).map(function (r) { return String(r.key).trim(); });
+  [
+    ['google_client_id', '', 'OAuth Client ID (Web) จาก Google Cloud Console สำหรับปุ่ม Sign in with Google ในหน้าผู้ดูแล'],
+    ['admin_emails', owner, 'อีเมล Google ของผู้ดูแล คั่นด้วยจุลภาค (แก้ได้จากหน้าผู้ดูแล แท็บตั้งค่าทั่วไป)'],
+  ].forEach(function (row) {
+    if (have.indexOf(row[0]) < 0) cfg.appendRow(row);
+  });
 
-/** แสดงรหัสผู้ดูแล (เปลี่ยนได้ที่ การตั้งค่าโปรเจ็กต์ > คุณสมบัติของสคริปต์ > ADMIN_KEY) */
-function showAdminKey() {
-  const key = PropertiesService.getScriptProperties().getProperty('ADMIN_KEY');
-  const msg = 'รหัสผู้ดูแล: ' + key;
+  const msg = 'ตั้งค่าเสร็จแล้ว ผู้ดูแลเริ่มต้น: ' + (owner || '(ไม่ทราบอีเมลเจ้าของ)') +
+    ' · ใส่ google_client_id ในแท็บ config ก่อนเข้าหน้าผู้ดูแล';
   console.log(msg);
   return msg;
 }
 
 /* ------------------------------------------------------- API ผู้ดูแล */
 
-const CONFIG_KEYS = ['site_url', 'contact_phone', 'pdpa_retention_years', 'pdpa_policy_url', 'org_name', 'email_sender_name', 'meeting_id_prefix'];
+// ค่าที่แก้ได้จากหน้าผู้ดูแล (google_client_id แก้ได้เฉพาะในชีต เพื่อไม่ให้ตั้งผิดจนเข้าระบบไม่ได้)
+const CONFIG_KEYS = ['site_url', 'contact_phone', 'pdpa_retention_years', 'pdpa_policy_url', 'org_name', 'email_sender_name', 'meeting_id_prefix', 'admin_emails'];
 
 function idPrefix_() {
   const p = String(getConfig_().meeting_id_prefix || 'HIA').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -639,13 +679,13 @@ function nextMeetingId_(rows) {
 }
 
 function admin_(b) {
-  const gate = checkAdmin_(b.key);
-  if (gate) return gate;
+  const auth = verifyAdmin_(b.id_token);
+  if (!auth.ok) return { ok: false, auth: false, error: auth.error };
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(20000);
     switch (b.op) {
-      case 'login': return { ok: true };
+      case 'login': return { ok: true, email: auth.email };
       case 'overview': return adminOverview_();
       case 'saveMeeting': return adminSaveMeeting_(b.meeting || {}, String(b.originalId || '').trim());
       case 'deleteMeeting': return adminDeleteMeeting_(String(b.id || '').trim());
@@ -653,7 +693,7 @@ function admin_(b) {
       case 'sendOnlineInfo': return adminSendOnlineInfo_(String(b.id || '').trim());
       case 'saveLists': return adminSaveLists_(b.lists || {});
       case 'saveUnits': return adminSaveUnits_(b.units || []);
-      case 'saveConfig': return adminSaveConfig_(b.values || {});
+      case 'saveConfig': return adminSaveConfig_(b.values || {}, auth.email);
     }
     return { ok: false, error: 'ไม่รู้จักคำสั่ง' };
   } catch (err) {
@@ -663,17 +703,55 @@ function admin_(b) {
   }
 }
 
-function checkAdmin_(key) {
+/* ------------------------------------------------ เข้าสู่ระบบด้วย Google */
+
+function parseEmails_(v) {
+  return String(v || '').toLowerCase().split(/[\s,;]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+}
+
+/** รายชื่อผู้ดูแล: config.admin_emails; ถ้าว่าง ให้เจ้าของสคริปต์เป็นผู้ดูแลคนเดียว (กันล็อกตัวเองออก) */
+function adminEmails_() {
+  const list = parseEmails_(getConfig_().admin_emails);
+  if (list.length) return list;
+  const owner = String(Session.getEffectiveUser().getEmail() || '').toLowerCase();
+  return owner ? [owner] : [];
+}
+
+/**
+ * ตรวจ Google ID token จากปุ่ม Sign in with Google
+ * ยืนยันกับ Google (tokeninfo): ผู้ออก, Client ID ของเรา, อีเมลยืนยันแล้ว, ยังไม่หมดอายุ แล้วจึงเทียบรายชื่อผู้ดูแล
+ */
+function verifyAdmin_(token) {
+  token = String(token || '');
+  if (!token) return { ok: false, error: 'กรุณาเข้าสู่ระบบด้วย Google' };
+  const clientId = String(getConfig_().google_client_id || '').trim();
+  if (!clientId) return { ok: false, error: 'ยังไม่ได้ตั้งค่า google_client_id ในแท็บ config ของ Google Sheet' };
+
   const cache = CacheService.getScriptCache();
-  const fails = Number(cache.get('admin_fails') || 0);
-  if (fails >= 10) return { ok: false, auth: false, error: 'ใส่รหัสผิดหลายครั้ง กรุณารอ 15 นาทีแล้วลองใหม่' };
-  const real = PropertiesService.getScriptProperties().getProperty('ADMIN_KEY');
-  if (!real) return { ok: false, auth: false, error: 'ยังไม่ได้ตั้งรหัสผู้ดูแล กรุณารัน setup ใน Apps Script' };
-  if (String(key || '') !== real) {
-    cache.put('admin_fails', String(fails + 1), 900);
-    return { ok: false, auth: false, error: 'รหัสผู้ดูแลไม่ถูกต้อง' };
+  const ck = 'idt_' + Utilities.base64EncodeWebSafe(
+    Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, token)).slice(0, 40);
+  let info = null;
+  const hit = cache.get(ck);
+  if (hit) {
+    info = JSON.parse(hit);
+  } else {
+    const res = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(token),
+      { muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) return { ok: false, error: 'การเข้าสู่ระบบหมดอายุหรือไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่' };
+    const t = JSON.parse(res.getContentText());
+    info = { iss: t.iss, aud: t.aud, email: t.email, email_verified: t.email_verified, exp: Number(t.exp) };
   }
-  return null;
+  const now = Math.floor(Date.now() / 1000);
+  if (['accounts.google.com', 'https://accounts.google.com'].indexOf(info.iss) < 0 || info.aud !== clientId) {
+    return { ok: false, error: 'การเข้าสู่ระบบไม่ถูกต้อง' };
+  }
+  if (!(info.email_verified === true || info.email_verified === 'true')) return { ok: false, error: 'อีเมล Google ยังไม่ได้ยืนยัน' };
+  if (!(info.exp > now)) return { ok: false, error: 'การเข้าสู่ระบบหมดอายุ กรุณาเข้าสู่ระบบใหม่' };
+  if (!hit) cache.put(ck, JSON.stringify(info), Math.max(1, Math.min(300, info.exp - now)));
+
+  const email = String(info.email || '').toLowerCase();
+  if (adminEmails_().indexOf(email) < 0) return { ok: false, error: 'บัญชี ' + email + ' ไม่มีสิทธิ์ผู้ดูแล' };
+  return { ok: true, email: email };
 }
 
 function lastRowIn_(sh, col) {
@@ -889,10 +967,19 @@ function adminSaveUnits_(units) {
   const sh = ss_().getSheetByName(SHEET.UNITS);
   if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, 1).clearContent();
   if (list.length) sh.getRange(2, 1, list.length, 1).setValues(list.map(function (u) { return [safeCell_(u)]; }));
+  invalidateUnits_();
   return { ok: true, count: list.length };
 }
 
-function adminSaveConfig_(values) {
+function adminSaveConfig_(values, currentEmail) {
+  if ('admin_emails' in values) {
+    const list = parseEmails_(values.admin_emails);
+    const bad = list.filter(function (e) { return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); });
+    if (bad.length) return { ok: false, error: 'อีเมลผู้ดูแลไม่ถูกต้อง: ' + bad.join(', ') };
+    if (!list.length) return { ok: false, error: 'ต้องมีอีเมลผู้ดูแลอย่างน้อย 1 รายการ' };
+    if (list.indexOf(currentEmail) < 0) return { ok: false, error: 'ลบอีเมลของตัวเอง (' + currentEmail + ') ออกไม่ได้ ให้ผู้ดูแลคนอื่นลบให้' };
+    values.admin_emails = list.filter(function (e, i) { return list.indexOf(e) === i; }).join(', ');
+  }
   const years = Number(values.pdpa_retention_years);
   if (!(years >= 1 && years <= 20)) return { ok: false, error: 'ระยะเวลาเก็บข้อมูลต้องอยู่ระหว่าง 1–20 ปี' };
   if (values.site_url && !/^https?:\/\//.test(values.site_url)) return { ok: false, error: 'ที่อยู่เว็บต้องขึ้นต้นด้วย https://' };
@@ -906,7 +993,7 @@ function adminSaveConfig_(values) {
   const rows = readTable_(SHEET.CONFIG);
   CONFIG_KEYS.forEach(function (k) {
     if (!(k in values)) return;
-    const v = k === 'pdpa_retention_years' ? years : safeCell_(clean_(values[k], 300));
+    const v = k === 'pdpa_retention_years' ? years : safeCell_(clean_(values[k], k === 'admin_emails' ? 2000 : 300));
     const r = rows.find(function (x) { return String(x.key).trim() === k; });
     if (r) sh.getRange(r._row, 2).setValue(v);
     else sh.appendRow([k, v, '']);

@@ -24,12 +24,14 @@
   const MODE_LABEL = { hybrid: 'On-site และ Online', onsite: 'On-site อย่างเดียว', online: 'Online อย่างเดียว' };
   const params = new URLSearchParams(location.search);
   const apiUrl = (window.APP_CONFIG && window.APP_CONFIG.API_URL) || '';
-  const useMock = params.get('mock') === '1' || !apiUrl;
+  // โหมดจำลองใช้ได้เฉพาะตอนทดสอบในเครื่อง บนเว็บจริงจะใช้ Apps Script เสมอ
+  const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+  const useMock = isLocal && (params.get('mock') === '1' || !apiUrl);
 
   const $ = (sel, root) => (root || document).querySelector(sel);
   const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
 
-  let key = '';
+  let idToken = ''; // Google ID token จากปุ่ม Sign in with Google (หมดอายุใน ~1 ชั่วโมง)
   let data = null;
   let editingId = null;
   let currentResponses = null;
@@ -37,7 +39,7 @@
   /* ---------------------------------------------------------------- API */
 
   async function call(op, extra) {
-    const body = Object.assign({ action: 'admin', key, op }, extra || {});
+    const body = Object.assign({ action: 'admin', id_token: idToken, op }, extra || {});
     let res;
     if (useMock) {
       res = await window.MOCK_API.admin(body);
@@ -50,7 +52,7 @@
       res = await r.json();
     }
     if (res.auth === false && op !== 'login') {
-      logout();
+      logout(res.error);
       throw new Error(res.error);
     }
     if (!res.ok) throw new Error(res.error || 'ทำรายการไม่สำเร็จ');
@@ -147,20 +149,85 @@
 
   /* --------------------------------------------------------------- login */
 
-  async function login(k) {
-    key = k;
-    await call('login');
-    storage((s) => s.setItem('rsvp_admin_key', k));
+  function showLoginError(msg) {
+    const err = $('#loginError');
+    err.textContent = msg || '';
+    err.hidden = !msg;
+  }
+
+  async function login(token) {
+    idToken = token;
+    showLoginError('');
+    const res = await call('login');
+    storage((s) => s.setItem('rsvp_admin_token', token));
+    $('#whoEmail').textContent = res.email || '';
     $('#loginView').hidden = true;
     $('#appView').hidden = false;
     await reload();
   }
 
-  function logout() {
-    key = '';
-    storage((s) => s.removeItem('rsvp_admin_key'));
+  async function onGoogleCredential(resp) {
+    try {
+      await login(resp.credential);
+    } catch (ex) {
+      logout(ex.message === 'Failed to fetch' ? 'เชื่อมต่อระบบไม่ได้' : ex.message);
+    }
+  }
+
+  function logout(message) {
+    idToken = '';
+    storage((s) => s.removeItem('rsvp_admin_token'));
+    if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect();
     $('#appView').hidden = true;
     $('#loginView').hidden = false;
+    showLoginError(typeof message === 'string' ? message : '');
+  }
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.async = true;
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('โหลดปุ่ม Google ไม่สำเร็จ'));
+      document.head.append(s);
+    });
+  }
+
+  async function setupGoogleSignIn() {
+    if (useMock) {
+      // โหมดทดสอบ: ปุ่มจำลอง ไม่ติดต่อ Google
+      $('#mockLoginBtn').hidden = false;
+      $('#mockLoginBtn').addEventListener('click', () => onGoogleCredential({ credential: 'mock-token' }));
+      return;
+    }
+    let clientId = '';
+    try {
+      const r = await fetch(apiUrl + '?action=adminInit').then((x) => x.json());
+      clientId = r.clientId || '';
+    } catch (e) {
+      showLoginError('เชื่อมต่อระบบไม่ได้');
+      return;
+    }
+    if (!clientId) {
+      showLoginError('ยังไม่ได้ตั้งค่า google_client_id ในแท็บ config ของ Google Sheet');
+      return;
+    }
+    try {
+      await loadScript('https://accounts.google.com/gsi/client');
+    } catch (e) {
+      showLoginError(e.message);
+      return;
+    }
+    google.accounts.id.initialize({
+      client_id: clientId,
+      callback: onGoogleCredential,
+      auto_select: true,
+      ux_mode: 'popup',
+    });
+    google.accounts.id.renderButton($('#gsiButton'), {
+      theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with', locale: 'th', width: 300,
+    });
   }
 
   async function reload() {
@@ -424,7 +491,8 @@
     const p = $('[data-panel="config"]');
     Object.entries(data.config).forEach(([k, v]) => {
       const input = $('[name="' + k + '"]', p);
-      if (input) input.value = v;
+      if (!input) return;
+      input.value = k === 'admin_emails' ? String(v || '').split(/[\s,;]+/).filter(Boolean).join('\n') : v;
     });
   }
 
@@ -453,7 +521,8 @@
   async function saveConfig(e) {
     const p = $('[data-panel="config"]');
     const values = {};
-    $$('input[name]', p).forEach((i) => { values[i.name] = i.value.trim(); });
+    $$('input[name], textarea[name]', p).forEach((i) => { values[i.name] = i.value.trim(); });
+    if ('admin_emails' in values) values.admin_emails = values.admin_emails.split(/[\s,;]+/).filter(Boolean).join(', ');
     await withBusy(e.currentTarget, async () => {
       try { await call('saveConfig', { values }); data.config = values; toast('บันทึกการตั้งค่าแล้ว'); }
       catch (ex) { toast(ex.message, true); }
@@ -463,25 +532,9 @@
   /* -------------------------------------------------------------- init */
 
   function init() {
-    if (useMock) $('#foot').textContent = 'โหมดทดสอบ: ข้อมูลจำลอง (รหัสผู้ดูแล: admin)';
+    if (useMock) $('#foot').textContent = 'โหมดทดสอบ: ข้อมูลจำลอง ปุ่มเข้าสู่ระบบเป็นแบบจำลอง';
 
-    $('#loginForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const err = $('#loginError');
-      err.hidden = true;
-      const btn = e.target.querySelector('button');
-      btn.disabled = true;
-      try {
-        await login(e.target.elements.key.value.trim());
-        e.target.reset();
-      } catch (ex) {
-        err.textContent = ex.message === 'Failed to fetch' ? 'เชื่อมต่อระบบไม่ได้' : ex.message;
-        err.hidden = false;
-      } finally {
-        btn.disabled = false;
-      }
-    });
-    $('#logoutBtn').addEventListener('click', logout);
+    $('#logoutBtn').addEventListener('click', () => logout());
     $$('.tabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
 
     $('#newMeetingBtn').addEventListener('click', () => openEditor(null));
@@ -507,7 +560,9 @@
     $('#saveUnitsBtn').addEventListener('click', saveUnits);
     $('#saveConfigBtn').addEventListener('click', saveConfig);
 
-    const saved = storage((s) => s.getItem('rsvp_admin_key'));
+    setupGoogleSignIn();
+    // ใช้ token เดิมในแท็บนี้ต่อ ถ้ายังไม่หมดอายุ (หมดแล้วจะกลับไปหน้าเข้าสู่ระบบ)
+    const saved = storage((s) => s.getItem('rsvp_admin_token'));
     if (saved) login(saved).catch(() => logout());
   }
 

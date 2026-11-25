@@ -19,19 +19,19 @@
     <!-- เข้าสู่ระบบ -->
     <section class="card login" id="loginView">
       <h1>ผู้ดูแลระบบตอบรับการประชุม</h1>
-      <form id="loginForm">
-        <label class="field">รหัสผู้ดูแล
-          <input type="password" name="key" autocomplete="current-password" required>
-        </label>
-        <p class="form-error" id="loginError" hidden></p>
-        <button class="btn primary" type="submit">เข้าสู่ระบบ</button>
-      </form>
+      <p class="hint login-hint">เข้าสู่ระบบด้วยบัญชี Google ที่ได้รับสิทธิ์ผู้ดูแล</p>
+      <div class="gsi-slot" id="gsiButton" aria-live="polite"></div>
+      <button class="btn primary" type="button" id="mockLoginBtn" hidden>เข้าสู่ระบบด้วย Google (จำลอง)</button>
+      <p class="form-error" id="loginError" hidden></p>
     </section>
 
     <div id="appView" hidden>
       <header class="admin-top">
         <h1>ผู้ดูแลระบบตอบรับการประชุม</h1>
-        <button class="btn ghost small" id="logoutBtn" type="button">ออกจากระบบ</button>
+        <div class="who">
+          <span class="who-email" id="whoEmail"></span>
+          <button class="btn ghost small" id="logoutBtn" type="button">ออกจากระบบ</button>
+        </div>
       </header>
 
       <nav class="tabs" role="tablist">
@@ -234,6 +234,10 @@
           <label class="field">ระยะเวลาเก็บข้อมูล PDPA (ปี)<input type="number" name="pdpa_retention_years" min="1" max="20"></label>
           <label class="field wide">ลิงก์นโยบายคุ้มครองข้อมูลส่วนบุคคล<input name="pdpa_policy_url"></label>
           <label class="field wide">ที่อยู่เว็บแบบตอบรับ (ใช้สร้างลิงก์ในชีต)<input name="site_url"></label>
+          <label class="field wide">อีเมลผู้ดูแล (บัญชี Google หนึ่งบรรทัดต่อหนึ่งคน)
+            <textarea name="admin_emails" rows="4" placeholder="name@anamai.mail.go.th"></textarea>
+            <span class="hint-inline">เฉพาะอีเมลในรายการนี้ที่เข้าหน้าผู้ดูแลได้ ต้องเป็นบัญชี Google (Gmail หรือ Google Workspace) ลบอีเมลของตัวเองไม่ได้</span>
+          </label>
         </div>
         <button class="btn primary" type="button" id="saveConfigBtn">บันทึกการตั้งค่า</button>
       </section>

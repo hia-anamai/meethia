@@ -12,7 +12,9 @@
   const pathMatch = location.pathname.match(/\/m\/([^/]+)\/?$/);
   const meetingId = (pathMatch ? decodeURIComponent(pathMatch[1]) : (params.get('m') || '')).trim();
   const apiUrl = (window.APP_CONFIG && window.APP_CONFIG.API_URL) || '';
-  const useMock = params.get('mock') === '1' || !apiUrl;
+  // โหมดจำลองใช้ได้เฉพาะตอนทดสอบในเครื่อง บนเว็บจริงจะใช้ Apps Script เสมอ
+  const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+  const useMock = isLocal && (params.get('mock') === '1' || !apiUrl);
 
   const $ = (sel, root) => (root || document).querySelector(sel);
   const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -469,10 +471,36 @@
 
   /* -------------------------------------------------------------- init */
 
+  /** หน้าแรก: ชื่อหน่วยงานและเบอร์ติดต่อจากแท็บ config (แก้ได้ที่หน้าผู้ดูแล > ตั้งค่าทั่วไป) */
+  async function renderWelcome() {
+    // แสดงหน้าแรกทันที แล้วค่อยเติมชื่อหน่วยงานและเบอร์โทรเมื่อโหลดเสร็จ
+    $('#loading').hidden = true;
+    $('#welcome').hidden = false;
+    try {
+      let data;
+      if (useMock) data = await window.MOCK_API.init('');
+      else {
+        data = await fetch(apiUrl + '?action=config').then((r) => r.json());
+        if (!data.ok || !data.config) data = await apiInit(''); // Apps Script รุ่นเก่ายังไม่มี action=config
+      }
+      if (data && data.ok) config = data.config || {};
+    } catch (e) { /* แสดงหน้าแรกด้วยค่าเริ่มต้น */ }
+    const org = config.org_name || 'กรมอนามัย';
+    $('#welcomeOrg').textContent = org;
+    $('#welcomeContactOrg').textContent = org;
+    document.title = 'ระบบตอบรับการประชุม · ' + org;
+    const phone = String(config.contact_phone || '').trim();
+    if (phone) {
+      $('#welcomePhoneText').textContent = 'โทร ' + phone;
+      $('#welcomePhone').href = 'tel:' + phone.replace(/[^0-9+]/g, '');
+      $('#welcomePhone').hidden = false;
+    }
+  }
+
   async function init() {
     if (useMock) $('#foot').textContent = 'โหมดทดสอบ: ใช้ข้อมูลจำลอง ไม่มีการบันทึกจริง';
     if (!meetingId) {
-      showFatal('ไม่พบการประชุม', 'กรุณาเปิดแบบตอบรับจากลิงก์ในหนังสือเชิญ');
+      await renderWelcome();
       return;
     }
     let data;

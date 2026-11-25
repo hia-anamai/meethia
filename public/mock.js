@@ -83,6 +83,7 @@ window.MOCK_API = (function () {
     site_url: location.origin + '/', contact_phone: config.contact_phone, pdpa_retention_years: '5',
     pdpa_policy_url: config.pdpa_policy_url, org_name: config.org_name, email_sender_name: 'กรมอนามัย - ระบบตอบรับการประชุม',
     meeting_id_prefix: 'HIA',
+    admin_emails: 'admin@example.com',
   };
   Object.values(meetings).forEach((m) => {
     m.status = m.open ? 'เปิด' : 'ปิด';
@@ -119,9 +120,11 @@ window.MOCK_API = (function () {
 
   async function admin(b) {
     await wait(250);
-    if (b.key !== 'admin') return { ok: false, auth: false, error: 'รหัสผู้ดูแลไม่ถูกต้อง' };
+    // จำลอง Google Sign-In: token 'mock-token' = admin@example.com
+    if (b.id_token !== 'mock-token') return { ok: false, auth: false, error: 'กรุณาเข้าสู่ระบบด้วย Google' };
+    const email = 'admin@example.com';
     switch (b.op) {
-      case 'login': return { ok: true };
+      case 'login': return { ok: true, email };
       case 'overview':
         return {
           ok: true,
@@ -162,7 +165,13 @@ window.MOCK_API = (function () {
       }
       case 'saveLists': Object.assign(lists, b.lists); return { ok: true };
       case 'saveUnits': unitSheet.splice(0, unitSheet.length, ...b.units); return { ok: true, count: unitSheet.length };
-      case 'saveConfig': Object.assign(adminConfig, b.values); return { ok: true };
+      case 'saveConfig': {
+        const list = String(b.values.admin_emails || '').toLowerCase().split(/[\s,;]+/).filter(Boolean);
+        if (!list.length) return { ok: false, error: 'ต้องมีอีเมลผู้ดูแลอย่างน้อย 1 รายการ' };
+        if (!list.includes(email)) return { ok: false, error: 'ลบอีเมลของตัวเอง (' + email + ') ออกไม่ได้ ให้ผู้ดูแลคนอื่นลบให้' };
+        Object.assign(adminConfig, b.values, { admin_emails: list.join(', ') });
+        return { ok: true };
+      }
     }
     return { ok: false, error: 'ไม่รู้จักคำสั่ง' };
   }
