@@ -4,3 +4,6 @@ node_modules/
 Thumbs.db
 desktop.ini
 .claude/settings.local.json
+
+# ตัวอย่างทะเบียนจริง มีข้อมูลส่วนบุคคล ห้าม commit
+ตัวอย่างทะเบียน/

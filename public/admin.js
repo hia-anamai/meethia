@@ -295,13 +295,13 @@
     showLoginError(typeof message === 'string' ? message : '');
   }
 
-  function loadScript(src) {
+  function loadScript(src, errorText) {
     return new Promise((resolve, reject) => {
       const s = document.createElement('script');
       s.src = src;
       s.async = true;
       s.onload = resolve;
-      s.onerror = () => reject(new Error('โหลดปุ่ม Google ไม่สำเร็จ'));
+      s.onerror = () => reject(new Error(errorText || 'โหลดปุ่ม Google ไม่สำเร็จ'));
       document.head.append(s);
     });
   }
@@ -635,6 +635,184 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
+  /* ------------------------------------------- ทะเบียนลงนาม (Excel) */
+
+  /**
+   * ทะเบียนรายชื่อผู้เข้าร่วมสำหรับลงลายมือชื่อ ตามแบบที่กองใช้อยู่
+   * A4 แนวนอน · TH Sarabun New 16 · ลำดับ / ชื่อ - สกุล / ตำแหน่ง / หน่วยงาน / ลายมือชื่อ เช้า-บ่าย
+   * จัดกลุ่มตามหน่วยงาน (หน่วยงานผู้จัดขึ้นก่อน) · ประชุมหลายวันแยกแผ่นงานละวัน · มีแถวว่างท้ายตารางสำหรับผู้มาเพิ่ม
+   * ผู้เข้าร่วม Online แยกไว้อีกแผ่นงาน (ไม่มีช่องลงนาม)
+   */
+  async function downloadRegister(e) {
+    if (!currentResponses) return;
+    const m = currentResponses.meeting;
+    const people = currentResponses.objects.filter((r) => r.attendance && r.attendance !== 'ไม่เข้าร่วม');
+    if (!people.length) {
+      toast('ยังไม่มีผู้ตอบเข้าร่วม จึงยังไม่มีรายชื่อสำหรับทะเบียน', true);
+      return;
+    }
+    await withBusy(e.currentTarget, async () => {
+      try {
+        if (!window.ExcelJS) await loadScript('/vendor/exceljs.min.js', 'โหลดตัวสร้างไฟล์ Excel ไม่สำเร็จ กรุณาลองใหม่');
+        const wb = buildRegisterWorkbook(m, people);
+        const buf = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const a = el('a', { href: URL.createObjectURL(blob), download: 'ทะเบียนลงนาม-' + m.id + '.xlsx' });
+        document.body.append(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      } catch (ex) {
+        toast(ex.message || 'สร้างไฟล์ไม่สำเร็จ', true);
+      }
+    }, 'กำลังสร้างไฟล์…');
+  }
+
+  function meetingDays(m) {
+    const s = m.date_start, e = m.date_end || m.date_start;
+    if (!s) return [];
+    const out = [];
+    const d = new Date(s + 'T00:00:00Z');
+    const end = new Date(e + 'T00:00:00Z');
+    while (d <= end && out.length < 31) {
+      out.push(d.toISOString().slice(0, 10));
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+    return out;
+  }
+
+  /** เรียงเป็นกลุ่มตามหน่วยงาน: หน่วยงานผู้จัดก่อน ที่เหลือเรียงตามตัวอักษร ในกลุ่มคงลำดับการตอบรับ */
+  function groupByUnit(rows, firstUnit) {
+    const groups = new Map();
+    rows.forEach((r) => {
+      const u = String(r.unit || '').trim() || 'ไม่ระบุหน่วยงาน';
+      if (!groups.has(u)) groups.set(u, []);
+      groups.get(u).push(r);
+    });
+    return Array.from(groups.entries()).sort(([a], [b]) => {
+      if (a === firstUnit) return -1;
+      if (b === firstUnit) return 1;
+      return a.localeCompare(b, 'th');
+    });
+  }
+
+  function buildRegisterWorkbook(m, people) {
+    const wb = new window.ExcelJS.Workbook();
+    wb.creator = (m.organizer_division || 'กรมอนามัย');
+    wb.created = new Date();
+    const onsite = people.filter((r) => r.attendance !== 'Online');
+    const online = people.filter((r) => r.attendance === 'Online');
+    const days = meetingDays(m);
+    const venue = String(m.venue || '').trim();
+
+    if (onsite.length || !online.length) {
+      if (days.length > 1) {
+        days.forEach((day, i) => {
+          const [, mo, d] = day.split('-').map(Number);
+          registerSheet(wb, 'วันที่ ' + (i + 1) + ' (' + d + ' ' + MONTHS_SHORT[mo - 1] + ')', m, onsite, thaiDate(day), venue, true);
+        });
+      } else {
+        registerSheet(wb, 'ทะเบียนลงนาม', m, onsite, m.date_text || thaiDate(m.date_start), venue, true);
+      }
+    }
+    if (online.length) {
+      const when = days.length > 1 ? thaiRange(m.date_start, m.date_end) : (m.date_text || thaiDate(m.date_start));
+      registerSheet(wb, 'ผู้เข้าร่วม Online', m, online, when, 'ผ่านระบบออนไลน์' + (m.online_platform ? ' (' + m.online_platform + ')' : ''), false);
+    }
+    return wb;
+  }
+
+  function registerSheet(wb, name, m, rows, dateText, venue, withSign) {
+    const FONT = 'TH Sarabun New';
+    const lastCol = withSign ? 'G' : 'E';
+    const ws = wb.addWorksheet(name.replace(/[\\/?*[\]:]/g, ' ').slice(0, 31), {
+      pageSetup: {
+        paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+        horizontalCentered: true, printTitlesRow: '1:5',
+        margins: { left: 0.2, right: 0.2, top: 0.45, bottom: 0.3, header: 0.2, footer: 0.2 },
+      },
+      headerFooter: { differentFirst: true, firstHeader: '', oddHeader: '&C&"TH Sarabun New"&14- &P -' },
+      views: [{ state: 'frozen', ySplit: 5 }],
+    });
+    const widths = withSign ? [6.6, 18.4, 23.1, 46.9, 43.2, 23.3, 23.3] : [6.6, 18.4, 23.1, 50, 50];
+    ws.columns = widths.map((w) => ({ width: w }));
+
+    // ชื่อประชุมมักขึ้นต้นด้วย "ประชุม…" / "อบรม…" จึงต่อท้าย "รายชื่อผู้เข้าร่วม" ได้ตรงตามแบบเดิม
+    const title = 'รายชื่อผู้เข้าร่วม' + String(m.name || '').trim().replace(/^การ(?=ประชุม|อบรม)/, '');
+    const when = /^วันที่/.test(dateText) ? dateText : 'วันที่ ' + dateText;
+    const where = !venue ? '' : (/^ณ\s/.test(venue) || /^ผ่าน/.test(venue) ? venue : 'ณ ' + venue);
+    [title, when, where].forEach((text, i) => {
+      const row = ws.getRow(i + 1);
+      ws.mergeCells('A' + (i + 1) + ':' + lastCol + (i + 1));
+      const c = row.getCell(1);
+      c.value = text;
+      c.font = { name: FONT, size: 16, bold: true };
+      c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      row.height = 24 * Math.max(1, Math.ceil(text.length / (withSign ? 120 : 95)));
+    });
+
+    // หัวตาราง 2 แถว
+    const head = withSign
+      ? [['A4:A5', 'ลำดับที่'], ['B4:C5', 'ชื่อ - สกุล'], ['D4:D5', 'ตำแหน่ง'], ['E4:E5', 'หน่วยงาน'], ['F4:G4', 'ลายมือชื่อ'], ['F5', 'เช้า'], ['G5', 'บ่าย']]
+      : [['A4:A5', 'ลำดับที่'], ['B4:C5', 'ชื่อ - สกุล'], ['D4:D5', 'ตำแหน่ง'], ['E4:E5', 'หน่วยงาน']];
+    head.forEach(([ref, text]) => {
+      if (ref.includes(':')) ws.mergeCells(ref);
+      const c = ws.getCell(ref.split(':')[0]);
+      c.value = text;
+    });
+    ws.getRow(4).height = 22;
+    ws.getRow(5).height = 22;
+
+    const DITTO = '"' + '-'.repeat(46) + '"';
+    let r = 6;
+    let n = 0;
+    const division = String(m.organizer_division || '').trim();
+    groupByUnit(rows, division).forEach(([unit, list]) => {
+      const g = ws.getRow(r);
+      ws.mergeCells('B' + r + ':C' + r);
+      g.getCell(2).value = unit;
+      g.getCell(2).font = { name: FONT, size: 16, bold: true };
+      g.height = 24;
+      r++;
+      list.forEach((p, i) => {
+        const row = ws.getRow(r);
+        n++;
+        row.getCell(1).value = n;
+        row.getCell(2).value = (String(p.prefix || '') + String(p.first_name || '')).trim();
+        row.getCell(3).value = String(p.last_name || '').trim();
+        row.getCell(4).value = String(p.position || '').trim();
+        row.getCell(5).value = i === 0 ? unit : DITTO;
+        row.height = 45;
+        r++;
+      });
+    });
+    const blanks = withSign ? 8 : 0; // แถวว่างสำหรับผู้มาเพิ่มหน้างาน
+    for (let i = 0; i < blanks; i++) { ws.getRow(r).height = 45; r++; }
+    const last = r - 1;
+
+    // รูปแบบตาราง: เส้นขอบ ฟอนต์ การจัดวาง
+    const cols = withSign ? 7 : 5;
+    const thin = { style: 'thin', color: { argb: 'FF000000' } };
+    for (let y = 4; y <= last; y++) {
+      for (let x = 1; x <= cols; x++) {
+        const c = ws.getRow(y).getCell(x);
+        const isHead = y <= 5;
+        if (!c.font || !c.font.bold) c.font = { name: FONT, size: 16, bold: isHead };
+        c.border = { top: thin, left: thin, bottom: thin, right: thin };
+        c.alignment = isHead
+          ? { horizontal: 'center', vertical: 'middle', wrapText: true }
+          : { horizontal: x === 1 ? 'center' : 'left', vertical: 'top', wrapText: true };
+      }
+    }
+    // ชื่อกับนามสกุลอยู่คนละช่องแต่เป็นคอลัมน์เดียวกัน: ไม่ขีดเส้นคั่นกลาง
+    for (let y = 6; y <= last; y++) {
+      const b = ws.getRow(y).getCell(2), c = ws.getRow(y).getCell(3);
+      b.border = Object.assign({}, b.border, { right: undefined });
+      c.border = Object.assign({}, c.border, { left: undefined });
+    }
+    return ws;
+  }
+
   /* ------------------------------------------------ lists / units / config */
 
   function linesOf(name, root) {
@@ -722,6 +900,7 @@
     $('#copyInviteBtn').addEventListener('click', () => copyText($('#inviteText').value, 'คัดลอกข้อความแล้ว'));
     $('#backToListBtn').addEventListener('click', () => showMeetingView('list'));
     $('#csvBtn').addEventListener('click', downloadCsv);
+    $('#registerBtn').addEventListener('click', downloadRegister);
     $('#sendOnlineBtn').addEventListener('click', sendOnlineInfo);
     $('#saveListsBtn').addEventListener('click', saveLists);
     $('#saveUnitsBtn').addEventListener('click', saveUnits);
