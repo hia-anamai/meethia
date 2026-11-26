@@ -987,6 +987,7 @@ function adminSaveMeeting_(m, originalId) {
     d.pay_food, d.pay_lodging, d.pay_travel, safeCell_(d.pay_note),
   ]];
   ensureHeaders_(sh, MEETING_HEADERS);
+  ensureMeetingValidation_(sh);
   const row = existing ? existing._row : lastRowIn_(sh, 1) + 1;
   sh.getRange(row, 1, 1, 14).setValues(values);
   sh.getRange(row, MEETING_HEADERS.indexOf('attend_mode') + 1).setValue(d.attend_mode);
@@ -1000,6 +1001,35 @@ function adminSaveMeeting_(m, originalId) {
   sh.getRange(row, 4, 1, 2).setNumberFormat('yyyy-mm-dd');
   sh.getRange(row, 8).setNumberFormat('yyyy-mm-dd');
   return { ok: true, id: d.id };
+}
+
+/**
+ * ตัวเลือก dropdown ในชีต meetings ต้องตรงกับค่าปัจจุบัน
+ * (ชีตที่สร้างก่อนเปลี่ยนชื่อ "ผู้จัดรับผิดชอบ" → "เบิกจากผู้จัด" ยังมีกฎเดิม ทำให้บันทึกไม่ได้)
+ */
+function ensureMeetingValidation_(sh) {
+  const rule = function (list) {
+    return SpreadsheetApp.newDataValidation().requireValueInList(list, true).setAllowInvalid(false).build();
+  };
+  const want = [['K2:M', PAY_OPTIONS], ['P2:P', MODES]];
+  want.forEach(function (w) {
+    const range = sh.getRange(w[0]);
+    const cur = range.getCell(1, 1).getDataValidation();
+    const vals = cur ? cur.getCriteriaValues() : null;
+    const list = vals && vals[0] ? vals[0].map(String) : [];
+    if (list.join('|') !== w[1].join('|')) range.setDataValidation(rule(w[1]));
+  });
+  // ค่าเดิมในชีตเปลี่ยนเป็นชื่อปัจจุบันด้วย
+  const n = sh.getLastRow();
+  if (n > 1) {
+    const pay = sh.getRange(2, 11, n - 1, 3);
+    const v = pay.getValues();
+    let changed = false;
+    const out = v.map(function (r) {
+      return r.map(function (x) { const y = x === '' ? x : payLabel_(x); if (y !== x) changed = true; return y; });
+    });
+    if (changed) pay.setValues(out);
+  }
 }
 
 function adminDeleteMeeting_(id) {
