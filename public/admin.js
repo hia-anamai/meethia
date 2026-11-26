@@ -200,14 +200,32 @@
     return n;
   }
 
+  /**
+   * ระหว่างบันทึก/ลบ/ส่งอีเมล ห้ามเริ่มคำสั่งอื่นซ้อน (กันกดซ้ำ กด Enter ซ้ำ หรือกดปุ่มอื่นระหว่างรอ)
+   * คืนค่า false ถ้ามีงานค้างอยู่
+   */
+  let busy = false;
+  function isBusy() {
+    if (busy) toast('กำลังทำรายการก่อนหน้า กรุณารอสักครู่');
+    return busy;
+  }
+
   async function withBusy(btn, fn, busyText) {
+    if (isBusy()) return false;
+    busy = true;
+    document.body.classList.add('admin-busy');
     const label = btn.textContent;
     btn.disabled = true;
     btn.textContent = '';
     const dark = btn.classList.contains('primary');
     btn.classList.add('is-busy');
     btn.append(spinnerEl(dark), busyText || 'กำลังบันทึก…');
-    try { await fn(); } finally { btn.disabled = false; btn.classList.remove('is-busy'); btn.textContent = label; }
+    try { await fn(); } finally {
+      busy = false;
+      document.body.classList.remove('admin-busy');
+      btn.disabled = false; btn.classList.remove('is-busy'); btn.textContent = label;
+    }
+    return true;
   }
 
   function spinnerEl(onDark) {
@@ -490,16 +508,19 @@
     });
   }
 
-  async function deleteMeeting() {
-    if (!editingId || !window.confirm('ลบการประชุม ' + editingId + ' ?')) return;
-    try {
-      await call('deleteMeeting', { id: editingId });
-      toast('ลบการประชุมแล้ว');
-      await reload();
-      showMeetingView('list');
-    } catch (ex) {
-      toast(ex.message, true);
-    }
+  async function deleteMeeting(e) {
+    if (isBusy() || !editingId || !window.confirm('ลบการประชุม ' + editingId + ' ?')) return;
+    const id = editingId;
+    await withBusy(e.currentTarget, async () => {
+      try {
+        await call('deleteMeeting', { id });
+        toast('ลบการประชุมแล้ว');
+        await reload();
+        showMeetingView('list');
+      } catch (ex) {
+        toast(ex.message, true);
+      }
+    }, 'กำลังลบ…');
   }
 
   /* ------------------------------------------------------- responses */
@@ -552,8 +573,9 @@
     const msg = op === 'setAbsent'
       ? 'เปลี่ยน ' + name + ' เป็น "ไม่เข้าร่วม"?\n\nยังเก็บประวัติไว้ ที่นั่ง On-site และยอดที่พักจะคืนทันที'
       : 'ลบรายชื่อ ' + name + ' (' + r.email + ') ออกจากประชุมนี้?\n\nลบแล้วกู้คืนไม่ได้ ถ้าผู้เข้าร่วมแค่ไม่สะดวกมา แนะนำให้ใช้ "ไม่เข้าร่วม" แทน';
-    if (!window.confirm(msg)) return;
-    await withBusy(e.currentTarget, async () => {
+    const btn = e.currentTarget;
+    if (isBusy() || !window.confirm(msg)) return;
+    await withBusy(btn, async () => {
       try {
         await call(op, { id: m.id, email: r.email });
         toast(op === 'setAbsent' ? 'เปลี่ยนเป็นไม่เข้าร่วมแล้ว' : 'ลบรายชื่อแล้ว');
@@ -576,21 +598,17 @@
     }
     const msg = 'ส่งอีเมลข้อมูลเข้าประชุมออนไลน์ให้ผู้ลงทะเบียนแบบ Online ' + m.counts.online + ' คน?\n\n' +
       (m.online_platform ? 'ระบบ: ' + m.online_platform + '\n' : '') + 'ลิงก์: ' + m.online_link;
-    if (!window.confirm(msg)) return;
     const btn = e.currentTarget;
-    const label = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = 'กำลังส่ง…';
-    try {
-      const res = await call('sendOnlineInfo', { id: m.id });
-      const fail = res.failed && res.failed.length ? ' (ส่งไม่สำเร็จ ' + res.failed.length + ': ' + res.failed.join(', ') + ')' : '';
-      toast('ส่งอีเมลแล้ว ' + res.sent + ' ฉบับ' + fail, !!fail);
-    } catch (ex) {
-      toast(ex.message, true);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = label;
-    }
+    if (isBusy() || !window.confirm(msg)) return;
+    await withBusy(btn, async () => {
+      try {
+        const res = await call('sendOnlineInfo', { id: m.id });
+        const fail = res.failed && res.failed.length ? ' (ส่งไม่สำเร็จ ' + res.failed.length + ': ' + res.failed.join(', ') + ')' : '';
+        toast('ส่งอีเมลแล้ว ' + res.sent + ' ฉบับ' + fail, !!fail);
+      } catch (ex) {
+        toast(ex.message, true);
+      }
+    }, 'กำลังส่งอีเมล…');
   }
 
   function downloadCsv() {

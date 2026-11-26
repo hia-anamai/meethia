@@ -207,6 +207,7 @@
 }
 .link-row .btn { text-decoration: none; display: inline-flex; align-items: center; }
 .link-panel textarea { background: var(--surface) !important; }
+body.admin-busy .btn:not(.is-busy) { cursor: progress; }
 .link-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: start; }
 .qr-box {
   margin: 0;
