@@ -150,6 +150,7 @@ function register_(body) {
 
     const result = upsertResponse_(r.data, meeting);
     if (result.error) return json_({ ok: false, error: result.error });
+    SpreadsheetApp.flush(); // ให้ error ตอนเขียนชีต (ถ้ามี) ถูกจับก่อนส่งอีเมลยืนยัน
     invalidateUnits_(r.data.unit);
 
     let emailSent = false;
@@ -777,7 +778,21 @@ function admin_(b) {
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(20000);
-    switch (b.op) {
+    const res = adminOp_(b, auth);
+    // ชีตเขียนจริงตอนจบสคริปต์ ถ้าเขียนไม่ผ่าน (เช่น ติดกฎตรวจข้อมูล) error จะหลุดนอก try
+    // จนเบราว์เซอร์เห็นแค่ "Failed to fetch" จึงสั่งเขียนตรงนี้ให้ error ถูกจับและแจ้งเป็นข้อความ
+    SpreadsheetApp.flush();
+    return res;
+  } catch (err) {
+    console.error('admin ' + b.op, err);
+    return { ok: false, error: 'ระบบขัดข้อง: ' + err.message };
+  } finally {
+    try { lock.releaseLock(); } catch (ignore) {}
+  }
+}
+
+function adminOp_(b, auth) {
+  switch (b.op) {
       case 'login': return { ok: true, email: auth.email };
       case 'overview': return adminOverview_();
       case 'saveMeeting': return adminSaveMeeting_(b.meeting || {}, String(b.originalId || '').trim());
@@ -789,14 +804,8 @@ function admin_(b) {
       case 'saveLists': return adminSaveLists_(b.lists || {});
       case 'saveUnits': return adminSaveUnits_(b.units || []);
       case 'saveConfig': return adminSaveConfig_(b.values || {}, auth.email);
-    }
-    return { ok: false, error: 'ไม่รู้จักคำสั่ง' };
-  } catch (err) {
-    console.error('admin ' + b.op, err);
-    return { ok: false, error: 'ระบบขัดข้อง: ' + err.message };
-  } finally {
-    try { lock.releaseLock(); } catch (ignore) {}
   }
+  return { ok: false, error: 'ไม่รู้จักคำสั่ง' };
 }
 
 /* ------------------------------------------------ เข้าสู่ระบบด้วย Google */
