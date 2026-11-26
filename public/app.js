@@ -307,7 +307,7 @@
       $('#orgRow').hidden = false;
     }
     $('#meetingHeader').hidden = false;
-    document.title = 'ตอบรับ: ' + meeting.name;
+    document.title = meeting.name + ' | แบบตอบรับ กรมอนามัย';
   }
 
   function payClass(v) {
@@ -654,7 +654,7 @@
     const org = cfg.org_name || 'กรมอนามัย';
     $('#welcomeOrg').textContent = org;
     $('#welcomeContactOrg').textContent = org;
-    document.title = 'ระบบตอบรับการประชุม · ' + org;
+    document.title = 'ระบบตอบรับการเข้าร่วมประชุม | ' + org;
     const card = $('#welcomePhone');
     const phone = String(cfg.contact_phone || '').trim();
     if (phone) {

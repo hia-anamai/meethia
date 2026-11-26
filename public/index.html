@@ -6,7 +6,24 @@
   <meta name="theme-color" content="#0d838d">
   <link rel="preload" href="/fonts/LINESeedSansTH_W_Rg.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/LINESeedSansTH_W_Bd.woff2" as="font" type="font/woff2" crossorigin>
-  <title>แบบตอบรับการเข้าร่วมประชุม</title>
+  <title>แบบตอบรับการเข้าร่วมประชุม | กรมอนามัย</title>
+  <meta name="description" content="แบบตอบรับการเข้าร่วมประชุมและการประชุมเชิงปฏิบัติการ กองประเมินผลกระทบต่อสุขภาพ กรมอนามัย กระทรวงสาธารณสุข">
+  <meta name="author" content="กองประเมินผลกระทบต่อสุขภาพ กรมอนามัย">
+  <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/img/icon-512.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <!-- ภาพและข้อความตัวอย่างเมื่อแชร์ลิงก์ใน LINE / Facebook / Teams -->
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="th_TH">
+  <meta property="og:site_name" content="กรมอนามัย กระทรวงสาธารณสุข">
+  <meta property="og:title" content="แบบตอบรับการเข้าร่วมประชุม | กรมอนามัย">
+  <meta property="og:description" content="ลงทะเบียนตอบรับการเข้าร่วมประชุมและการประชุมเชิงปฏิบัติการ กองประเมินผลกระทบต่อสุขภาพ กรมอนามัย">
+  <meta property="og:url" content="https://meethia.netlify.app/">
+  <meta property="og:image" content="https://meethia.netlify.app/img/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="ตรากระทรวงสาธารณสุข กรมอนามัย แบบตอบรับการเข้าร่วมประชุม">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -14,6 +31,13 @@
 </head>
 <body>
   <main class="wrap">
+    <div class="brand">
+      <img src="/img/doh-seal.png" alt="ตรากระทรวงสาธารณสุข" width="52" height="52">
+      <div>
+        <p class="brand-th">กรมอนามัย กระทรวงสาธารณสุข</p>
+        <p class="brand-en">Department of Health, Ministry of Public Health</p>
+      </div>
+    </div>
     <header class="meeting" id="meetingHeader" hidden>
       <p class="eyebrow">แบบตอบรับการเข้าร่วมประชุม</p>
       <h1 id="meetingName"></h1>
@@ -37,8 +61,8 @@
     <!-- หน้าแรก (เปิดเว็บโดยไม่มีรหัสประชุม) -->
     <div id="welcome" hidden>
       <header class="meeting welcome-hero">
-        <p class="eyebrow">ระบบตอบรับการเข้าร่วมประชุม</p>
-        <h1>ยินดีต้อนรับ</h1>
+        <p class="eyebrow">ยินดีต้อนรับสู่</p>
+        <h1>ระบบตอบรับการเข้าร่วมประชุม</h1>
         <p class="welcome-org" id="welcomeOrg">กรมอนามัย</p>
       </header>
       <section class="card">
