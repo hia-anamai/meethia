@@ -654,7 +654,8 @@
     await withBusy(e.currentTarget, async () => {
       try {
         if (!window.ExcelJS) await loadScript('/vendor/exceljs.min.js', 'โหลดตัวสร้างไฟล์ Excel ไม่สำเร็จ กรุณาลองใหม่');
-        const wb = buildRegisterWorkbook(m, people);
+        const cfg = (data && data.config) || {};
+        const wb = buildRegisterWorkbook(m, people, parseFixedPeople(cfg.register_fixed_people), cfg.default_division);
         const buf = await wb.xlsx.writeBuffer();
         const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         const a = el('a', { href: URL.createObjectURL(blob), download: 'ทะเบียนลงนาม-' + m.id + '.xlsx' });
@@ -696,8 +697,25 @@
     });
   }
 
-  function buildRegisterWorkbook(m, people) {
+  /**
+   * "รายชื่อที่ใส่ในทะเบียนลงนามเสมอ" จากตั้งค่าทั่วไป: คนละย่อหน้า
+   * บรรทัดแรก = คำนำหน้า+ชื่อ นามสกุล (คำสุดท้ายคือนามสกุล) · บรรทัดถัดไป = ตำแหน่ง
+   */
+  function parseFixedPeople(text) {
+    return String(text || '').replace(/\r/g, '').split(/\n\s*\n/).map((block) => {
+      const lines = block.split('\n').map((s) => s.trim()).filter(Boolean);
+      if (!lines.length) return null;
+      const parts = lines[0].split(/\s+/);
+      const last = parts.length > 1 ? parts.pop() : '';
+      return { first: parts.join(' '), last_name: last, position: lines.slice(1).join('\n'), fixed: true };
+    }).filter(Boolean);
+  }
+
+  const nameKey = (s) => String(s || '').replace(/\s+/g, '');
+
+  function buildRegisterWorkbook(m, people, fixed, defaultDivision) {
     const wb = new window.ExcelJS.Workbook();
+    m = Object.assign({}, m, { _fixed: fixed || [], _fixedUnit: String(defaultDivision || m.organizer_division || '').trim() });
     wb.creator = (m.organizer_division || 'กรมอนามัย');
     wb.created = new Date();
     const onsite = people.filter((r) => r.attendance !== 'Online');
@@ -767,7 +785,23 @@
     let r = 6;
     let n = 0;
     const division = String(m.organizer_division || '').trim();
-    groupByUnit(rows, division).forEach(([unit, list]) => {
+    // รายชื่อที่ใส่เสมอ (ผู้บริหาร) ขึ้นต้นกลุ่มกองผู้จัด เฉพาะแผ่นงานลงนาม และเฉพาะประชุมที่กองตั้งต้นเป็นผู้จัด
+    // ถ้าคนนั้นกรอกแบบตอบรับเองด้วย ใช้ชื่อ/ตำแหน่งจากการตั้งค่า (ทางการกว่า) และไม่ขึ้นซ้ำ
+    const fixedUnit = m._fixedUnit;
+    const useFixed = withSign && m._fixed.length && fixedUnit && (!division || division === fixedUnit);
+    const sameAs = (f, p) => {
+      const k = nameKey(String(p.first_name || '') + String(p.last_name || ''));
+      return !!k && nameKey(f.first + f.last_name).endsWith(k);
+    };
+    const body = useFixed ? rows.filter((p) => !m._fixed.some((f) => sameAs(f, p))) : rows;
+    const groups = groupByUnit(body, useFixed ? fixedUnit : division);
+    if (useFixed) {
+      let g = groups.find(([u]) => u === fixedUnit);
+      if (!g) { g = [fixedUnit, []]; groups.unshift(g); }
+      g[1] = m._fixed.map((f) => ({ prefix: '', first_name: f.first, last_name: f.last_name, position: f.position, unit: fixedUnit }))
+        .concat(g[1]);
+    }
+    groups.forEach(([unit, list]) => {
       const g = ws.getRow(r);
       ws.mergeCells('B' + r + ':C' + r);
       g.getCell(2).value = unit;
@@ -782,7 +816,9 @@
         row.getCell(3).value = String(p.last_name || '').trim();
         row.getCell(4).value = String(p.position || '').trim();
         row.getCell(5).value = i === 0 ? unit : DITTO;
-        row.height = 45;
+        // ตำแหน่งยาวหรือหลายบรรทัด: เพิ่มความสูงแถวให้พอ (คอลัมน์ตำแหน่งกว้างราว 48 ตัวอักษร)
+        const lines = String(p.position || '').split('\n').reduce((n, s) => n + Math.max(1, Math.ceil(s.length / 48)), 0);
+        row.height = Math.max(45, lines * 21 + 6);
         r++;
       });
     });

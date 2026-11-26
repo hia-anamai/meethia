@@ -739,6 +739,7 @@ function setup() {
     ['google_client_id', '', 'OAuth Client ID (Web) จาก Google Cloud Console สำหรับปุ่ม Sign in with Google ในหน้าผู้ดูแล'],
     ['default_division', DEFAULT_DIVISION, 'ชื่อกองผู้จัดที่เติมให้อัตโนมัติเมื่อเพิ่มประชุมใหม่'],
     ['reply_to_email', '', 'อีเมลที่รับการตอบกลับจากผู้เข้าร่วม (ว่าง = ตอบกลับไปที่บัญชีเจ้าของ Apps Script)'],
+    ['register_fixed_people', REGISTER_FIXED_DEFAULT, 'รายชื่อที่ใส่ในทะเบียนลงนามทุกครั้ง (คนละย่อหน้า: บรรทัดแรกชื่อ-สกุล บรรทัดถัดไปตำแหน่ง)'],
     ['admin_emails', owner, 'อีเมล Google ของผู้ดูแล คั่นด้วยจุลภาค (แก้ได้จากหน้าผู้ดูแล แท็บตั้งค่าทั่วไป)'],
   ].forEach(function (row) {
     if (have.indexOf(row[0]) < 0) cfg.appendRow(row);
@@ -753,7 +754,22 @@ function setup() {
 /* ------------------------------------------------------- API ผู้ดูแล */
 
 // ค่าที่แก้ได้จากหน้าผู้ดูแล (google_client_id แก้ได้เฉพาะในชีต เพื่อไม่ให้ตั้งผิดจนเข้าระบบไม่ได้)
-const CONFIG_KEYS = ['site_url', 'contact_phone', 'pdpa_retention_years', 'pdpa_policy_url', 'org_name', 'email_sender_name', 'meeting_id_prefix', 'admin_emails', 'default_division', 'reply_to_email'];
+const CONFIG_KEYS = ['site_url', 'contact_phone', 'pdpa_retention_years', 'pdpa_policy_url', 'org_name', 'email_sender_name', 'meeting_id_prefix', 'admin_emails', 'default_division', 'reply_to_email', 'register_fixed_people'];
+
+/**
+ * ผู้บริหาร/ผู้ที่ใส่ในทะเบียนลงนามทุกครั้ง (ไม่ต้องกรอกแบบตอบรับ) ขึ้นต้นกลุ่มกองผู้จัด
+ * รูปแบบ: คนละย่อหน้า บรรทัดแรก = คำนำหน้า+ชื่อ นามสกุล บรรทัดถัดไป = ตำแหน่ง (หลายบรรทัดได้)
+ * แก้ได้ที่หน้าผู้ดูแล > ตั้งค่าทั่วไป
+ */
+const REGISTER_FIXED_DEFAULT = [
+  'นางจิตติมา รอดสวาสดิ์',
+  'ผู้อำนวยการ',
+  '',
+  'น.ส.ปรียนิตย์ ใหม่เจริญศรี',
+  'นักวิชาการสาธารณสุขชำนาญการพิเศษ',
+  'รักษาการในตำแหน่งนักวิชาการสาธารณสุข',
+  'เชี่ยวชาญ (ด้านประเมินผลกระทบต่อสุขภาพ)',
+].join('\n');
 
 function idPrefix_() {
   const p = String(getConfig_().meeting_id_prefix || 'HIA').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -912,6 +928,8 @@ function adminOverview_() {
   const cfg = getConfig_();
   const config = {};
   CONFIG_KEYS.forEach(function (k) { config[k] = cfg[k] == null ? '' : String(cfg[k]); });
+  // ยังไม่เคยตั้งค่า (ไม่มีแถวในชีต) ใช้ค่าตั้งต้น · ถ้าผู้ดูแลลบจนว่าง แถวยังอยู่และได้ค่าว่างตามที่ตั้ง
+  if (cfg.register_fixed_people == null) config.register_fixed_people = REGISTER_FIXED_DEFAULT;
   return {
     ok: true,
     meetings: meetings,
@@ -1187,7 +1205,9 @@ function adminSaveConfig_(values, currentEmail) {
   const rows = readTable_(SHEET.CONFIG);
   CONFIG_KEYS.forEach(function (k) {
     if (!(k in values)) return;
-    const v = k === 'pdpa_retention_years' ? years : safeCell_(clean_(values[k], k === 'admin_emails' ? 2000 : 300));
+    const v = k === 'pdpa_retention_years' ? years
+      : k === 'register_fixed_people' ? safeCell_(cleanNote_(values[k])) // หลายบรรทัด
+        : safeCell_(clean_(values[k], k === 'admin_emails' ? 2000 : 300));
     const r = rows.find(function (x) { return String(x.key).trim() === k; });
     if (r) sh.getRange(r._row, 2).setValue(v);
     else sh.appendRow([k, v, '']);

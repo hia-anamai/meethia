@@ -87,6 +87,7 @@ window.MOCK_API = (function () {
     meeting_id_prefix: 'HIA',
     default_division: 'กองประเมินผลกระทบต่อสุขภาพ',
     admin_emails: 'admin@example.com',
+    register_fixed_people: 'นางสมใจ ใจดี\nผู้อำนวยการ\n\nน.ส.ตัวอย่าง ทดสอบระบบ\nนักวิชาการสาธารณสุขชำนาญการพิเศษ\nรักษาการในตำแหน่งนักวิชาการสาธารณสุข\nเชี่ยวชาญ (ด้านประเมินผลกระทบต่อสุขภาพ)',
   };
   Object.values(meetings).forEach((m) => {
     m.status = m.open ? 'เปิด' : 'ปิด';

@@ -269,6 +269,10 @@
           <label class="field">ระยะเวลาเก็บข้อมูล PDPA (ปี)<input type="number" name="pdpa_retention_years" min="1" max="20"></label>
           <label class="field wide">ลิงก์นโยบายคุ้มครองข้อมูลส่วนบุคคล<input name="pdpa_policy_url"></label>
           <label class="field wide">ที่อยู่เว็บแบบตอบรับ (ใช้สร้างลิงก์ในชีต)<input name="site_url"></label>
+          <label class="field wide">รายชื่อที่ใส่ในทะเบียนลงนามเสมอ
+            <textarea name="register_fixed_people" rows="8" placeholder="นางสมใจ ใจดี&#10;ผู้อำนวยการ&#10;&#10;นายสมชาย รักงาน&#10;นักวิชาการสาธารณสุขชำนาญการพิเศษ"></textarea>
+            <span class="hint-inline">ขึ้นต้นกลุ่มกองผู้จัดในไฟล์ทะเบียนลงนาม (Excel) ทุกประชุม โดยไม่ต้องกรอกแบบตอบรับ · คนละย่อหน้า (เว้นบรรทัดคั่น) บรรทัดแรกเป็นคำนำหน้า+ชื่อ นามสกุล บรรทัดถัดไปเป็นตำแหน่ง ขึ้นบรรทัดใหม่ได้ · ถ้าคนนั้นกรอกแบบตอบรับเองด้วย จะไม่ขึ้นซ้ำ</span>
+          </label>
           <label class="field wide">อีเมลผู้ดูแล (บัญชี Google หนึ่งบรรทัดต่อหนึ่งคน)
             <textarea name="admin_emails" rows="4" placeholder="name@anamai.mail.go.th"></textarea>
             <span class="hint-inline">เฉพาะอีเมลในรายการนี้ที่เข้าหน้าผู้ดูแลได้ ต้องเป็นบัญชี Google (Gmail หรือ Google Workspace) ลบอีเมลของตัวเองไม่ได้</span>
