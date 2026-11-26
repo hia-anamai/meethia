@@ -208,6 +208,22 @@
 }
 .link-row .btn { text-decoration: none; display: inline-flex; align-items: center; }
 .link-panel textarea { background: var(--surface) !important; }
+.link-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: start; }
+.qr-box {
+  margin: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 14px 14px 16px;
+  background: var(--surface);
+  border: 1.5px solid color-mix(in srgb, var(--primary) 20%, var(--line));
+  border-radius: 18px;
+}
+.qr-box img { display: block; width: 168px; height: auto; }
+.qr-box figcaption { font-size: .82rem; color: var(--ink-3); }
+.qr-box .btn { text-decoration: none; }
+@media (max-width: 720px) {
+  .link-grid { grid-template-columns: 1fr; }
+  .qr-box { justify-self: center; }
+}
 .link-preview { display: block; margin-top: 6px; font-weight: 400; font-size: .82rem; color: var(--ink-3); word-break: break-all; font-family: var(--font-mono); }
 
 /* ------------------------------------------------------------ forms */

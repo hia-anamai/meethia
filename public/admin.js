@@ -142,9 +142,50 @@
     $('#linkInput').value = link;
     $('#openLinkBtn').href = link;
     $('#inviteText').value = inviteText(m, link);
+    renderQr(link, m.id);
     $('#linkPanel').hidden = false;
     showMeetingView('list');
     $('#linkInput').select();
+  }
+
+  /**
+   * QR code ของลิงก์แบบตอบรับ สร้างในเบราว์เซอร์ (ไม่ส่งลิงก์ไปบริการภายนอก)
+   * ไฟล์ดาวน์โหลดเป็น PNG ความละเอียดสูง มีรหัสประชุมใต้ภาพ ใช้ใส่หนังสือเชิญหรือสไลด์ได้
+   */
+  function renderQr(link, id) {
+    const box = $('.qr-box');
+    if (typeof window.qrcode !== 'function') { box.hidden = true; return; }
+    box.hidden = false;
+    const qr = window.qrcode(0, 'M');
+    qr.addData(link);
+    qr.make();
+    const n = qr.getModuleCount();
+    const quiet = 4; // ขอบขาวตามมาตรฐาน QR
+    const cell = Math.max(8, Math.floor(1000 / (n + quiet * 2)));
+    const size = (n + quiet * 2) * cell;
+    const label = id ? Math.round(cell * 5) : 0;
+    const c = document.createElement('canvas');
+    c.width = size;
+    c.height = size + label;
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff';
+    g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = '#111';
+    for (let r = 0; r < n; r++) {
+      for (let k = 0; k < n; k++) {
+        if (qr.isDark(r, k)) g.fillRect((k + quiet) * cell, (r + quiet) * cell, cell, cell);
+      }
+    }
+    if (label) {
+      g.font = '700 ' + Math.round(cell * 2.6) + 'px "LINE Seed Sans TH", "Google Sans", sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText(id, size / 2, size + label / 2 - cell * 1.2);
+    }
+    const url = c.toDataURL('image/png');
+    $('#qrImg').src = url;
+    $('#qrDownload').href = url;
+    $('#qrDownload').download = 'QR-' + (id || 'rsvp') + '.png';
   }
 
   function el(tag, attrs, children) {

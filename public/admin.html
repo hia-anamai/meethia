@@ -53,6 +53,8 @@
               <button class="btn ghost small" type="button" id="closeLinkPanel">ปิด</button>
             </div>
             <p class="mname" id="linkMeetingName"></p>
+            <div class="link-grid">
+            <div class="link-body">
             <div class="link-row">
               <input id="linkInput" readonly aria-label="ลิงก์แบบตอบรับ">
               <button class="btn primary small" type="button" id="copyLinkBtn">คัดลอกลิงก์</button>
@@ -62,6 +64,13 @@
               <textarea id="inviteText" rows="3" readonly></textarea>
             </label>
             <button class="btn ghost small" type="button" id="copyInviteBtn">คัดลอกข้อความ</button>
+            </div>
+            <figure class="qr-box">
+              <img id="qrImg" alt="QR code ลิงก์แบบตอบรับ" width="168">
+              <figcaption>สแกนเพื่อตอบรับ</figcaption>
+              <a class="btn primary small" id="qrDownload" download>ดาวน์โหลด QR</a>
+            </figure>
+            </div>
           </section>
           <div class="toolbar">
             <p class="hint" id="meetingCount"></p>
@@ -272,6 +281,7 @@
 
   <script src="/config.js"></script>
   <script src="/mock.js"></script>
+  <script src="/vendor/qrcode.js"></script>
   <script src="/admin.js"></script>
   <script src="/help.js"></script>
 </body>
