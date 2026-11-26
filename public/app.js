@@ -583,7 +583,10 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  let sending = false; // กันส่งซ้ำ ทั้งกดปุ่มซ้ำและกด Enter ระหว่างรอ
+
   async function next() {
+    if (sending) return;
     const steps = activeSteps();
     const current = steps[stepIndex];
     if (!validateStep(current)) return;
@@ -603,6 +606,7 @@
     }
 
     const btn = $('#nextBtn');
+    sending = true;
     btn.disabled = true;
     $('#backBtn').disabled = true;
     btn.textContent = '';
@@ -621,6 +625,7 @@
     } catch (err) {
       fail(err.message === 'Failed to fetch' ? 'เชื่อมต่อระบบไม่ได้ กรุณาลองใหม่อีกครั้ง' : err.message);
     } finally {
+      sending = false;
       stopHints();
       form.classList.remove('is-sending');
       btn.classList.remove('is-busy');
