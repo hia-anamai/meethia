@@ -132,6 +132,24 @@
             </label>
           </div>
 
+          <h2>ผู้จัดประชุม</h2>
+          <p class="hint">แสดงในแบบตอบรับและอีเมลยืนยัน ให้ผู้เข้าร่วมรู้ว่าติดต่อใคร</p>
+          <div class="grid three">
+            <label class="field">กอง
+              <input name="organizer_division" placeholder="กองประเมินผลกระทบต่อสุขภาพ">
+            </label>
+            <label class="field">กลุ่ม
+              <input name="organizer_group" placeholder="เช่น กลุ่มพยากรณ์สุขภาพ">
+            </label>
+            <label class="field">เบอร์โทรติดต่อ
+              <input name="organizer_phone" inputmode="tel" placeholder="ว่าง = ใช้เบอร์กลาง">
+            </label>
+            <label class="field wide">หมายเหตุอื่น ๆ (เรื่องที่ไม่ใช่ค่าใช้จ่าย)
+              <textarea name="meeting_note" rows="3" placeholder="เช่น การแต่งกาย ที่จอดรถ เอกสารที่ต้องนำมา การเตรียมตัวก่อนประชุม"></textarea>
+              <span class="hint-inline">แสดงบนแบบตอบรับทุกขั้นตอนและในอีเมลยืนยัน ขึ้นบรรทัดใหม่ได้</span>
+            </label>
+          </div>
+
           <h2>เงื่อนไขค่าใช้จ่าย</h2>
           <p class="hint">ผู้เข้าร่วมจะเห็นเงื่อนไขนี้ในแบบตอบรับและอีเมลยืนยัน</p>
           <div class="grid three">
@@ -145,7 +163,7 @@
               <select name="pay_travel" class="js-pay"></select>
             </label>
             <label class="field wide">หมายเหตุค่าใช้จ่าย
-              <textarea name="pay_note" rows="2" placeholder="เช่น ผู้จัดรับผิดชอบค่าที่พักห้องพักคู่ ผู้ที่เลือกพักเดี่ยวชำระส่วนต่างเอง"></textarea>
+              <textarea name="pay_note" rows="2" placeholder="เช่น เบิกค่าที่พักห้องพักคู่จากผู้จัด ผู้ที่เลือกพักเดี่ยวชำระส่วนต่างเอง"></textarea>
             </label>
           </div>
 
@@ -190,7 +208,7 @@
             <button class="btn ghost small" type="button" id="backToListBtn">← กลับ</button>
             <div class="toolbar-right">
               <button class="btn ghost small" type="button" id="sendOnlineBtn" hidden>ส่งข้อมูลประชุมออนไลน์ทางอีเมล</button>
-              <button class="btn primary small" type="button" id="csvBtn">ดาวน์โหลด CSV</button>
+              <button class="btn primary small" type="button" id="csvBtn" title="เฉพาะผู้ที่ตอบเข้าร่วม (On-site / Online)">ดาวน์โหลด CSV ผู้เข้าร่วม</button>
             </div>
           </div>
           <h2 id="responseTitle"></h2>
@@ -231,9 +249,11 @@
         <h2>ตั้งค่าทั่วไป</h2>
         <div class="grid">
           <label class="field">ชื่อหน่วยงานผู้จัด<input name="org_name"></label>
+          <label class="field">ชื่อกองตั้งต้นของประชุมใหม่<input name="default_division" placeholder="กองประเมินผลกระทบต่อสุขภาพ"></label>
           <label class="field">ตัวอักษรนำหน้ารหัสประชุม<input name="meeting_id_prefix" maxlength="10" placeholder="HIA"></label>
           <label class="field">เบอร์ติดต่อ<input name="contact_phone"></label>
           <label class="field">ชื่อผู้ส่งอีเมลยืนยัน<input name="email_sender_name"></label>
+          <label class="field">อีเมลรับการตอบกลับ<input name="reply_to_email" type="email" placeholder="ว่าง = บัญชีเจ้าของ Apps Script"></label>
           <label class="field">ระยะเวลาเก็บข้อมูล PDPA (ปี)<input type="number" name="pdpa_retention_years" min="1" max="20"></label>
           <label class="field wide">ลิงก์นโยบายคุ้มครองข้อมูลส่วนบุคคล<input name="pdpa_policy_url"></label>
           <label class="field wide">ที่อยู่เว็บแบบตอบรับ (ใช้สร้างลิงก์ในชีต)<input name="site_url"></label>

@@ -64,15 +64,13 @@
     const sel = field('level');
     const posSel = field('position');
     const pos = selectValue('position');
+    const keep = sel.value;
     sel.innerHTML = '';
-    if (!posSel.value) {
-      sel.append(new Option('— เลือกตำแหน่งก่อน —', ''));
-      sel.disabled = true;
-      return;
-    }
+    // เลือกได้ตลอด: ยังไม่เลือกตำแหน่ง = แสดงทุกระดับ, เลือกแล้ว = แสดงเฉพาะระดับที่ตรงกับตำแหน่ง
     sel.disabled = false;
     sel.append(new Option('— เลือกระดับ —', ''));
-    const groups = posSel.value === OTHER ? ['expert', 'general', 'director', 'executive'] : levelGroupsFor(pos);
+    const all = ['expert', 'general', 'director', 'executive'];
+    const groups = (!posSel.value || posSel.value === OTHER) ? all : levelGroupsFor(pos);
     groups.forEach((g) => {
       const og = document.createElement('optgroup');
       og.label = LV_GROUP[g];
@@ -80,6 +78,89 @@
       sel.append(og);
     });
     sel.append(new Option('ไม่มีระดับ (พนักงานราชการ / ลูกจ้าง / อื่น ๆ)', NO_LEVEL));
+    if (keep && [...sel.options].some((o) => o.value === keep)) sel.value = keep; // คงค่าที่เลือกไว้ถ้ายังใช้ได้
+  }
+
+  /**
+   * ช่องค้นหาหน่วยงาน: พิมพ์แล้วกรองรายชื่อ แตะเพื่อเลือก หรือพิมพ์ชื่อใหม่ได้
+   * ใช้แทน <datalist> เพราะเบราว์เซอร์ในแอป LINE / Facebook บน Android ไม่แสดงรายการ
+   */
+  function setupCombo(input, options) {
+    const wrap = input.parentElement;
+    wrap.classList.add('combo');
+    const listId = input.name + 'Listbox';
+    const list = document.createElement('ul');
+    list.className = 'combo-list';
+    list.id = listId;
+    list.setAttribute('role', 'listbox');
+    list.hidden = true;
+    input.after(list);
+    input.removeAttribute('list');
+    input.setAttribute('role', 'combobox');
+    input.setAttribute('aria-autocomplete', 'list');
+    input.setAttribute('aria-controls', listId);
+    input.setAttribute('aria-expanded', 'false');
+    input.setAttribute('autocomplete', 'off');
+
+    const norm = (s) => String(s).toLowerCase().replace(/\s+/g, '');
+    let items = [];
+    let active = -1;
+
+    function close() {
+      list.hidden = true;
+      input.setAttribute('aria-expanded', 'false');
+      input.removeAttribute('aria-activedescendant');
+    }
+
+    function choose(value) {
+      input.value = value;
+      close();
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function highlight() {
+      [...list.children].forEach((li, i) => li.classList.toggle('active', i === active));
+      if (active >= 0 && list.children[active]) {
+        list.children[active].scrollIntoView({ block: 'nearest' });
+        input.setAttribute('aria-activedescendant', list.children[active].id);
+      }
+    }
+
+    function render() {
+      const q = norm(input.value);
+      items = (q ? options.filter((o) => norm(o).includes(q)) : options).slice(0, 60);
+      list.innerHTML = '';
+      active = -1;
+      items.forEach((o, i) => {
+        const li = document.createElement('li');
+        li.id = listId + '-' + i;
+        li.setAttribute('role', 'option');
+        li.textContent = o;
+        // mousedown + preventDefault: เลือกได้โดยช่องไม่เสียโฟกัสก่อน (ใช้ได้ทั้งเมาส์และการแตะ)
+        li.addEventListener('mousedown', (e) => { e.preventDefault(); choose(o); });
+        list.append(li);
+      });
+      if (!items.length) {
+        const li = document.createElement('li');
+        li.className = 'combo-empty';
+        li.textContent = q ? 'ไม่พบในรายการ ใช้ชื่อที่พิมพ์ได้เลย' : 'ไม่มีรายชื่อหน่วยงาน';
+        list.append(li);
+      }
+      list.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+    }
+
+    input.addEventListener('focus', render);
+    input.addEventListener('click', () => { if (list.hidden) render(); }); // แตะซ้ำตอนช่องโฟกัสอยู่แล้ว
+    input.addEventListener('input', render);
+    input.addEventListener('blur', () => setTimeout(close, 120));
+    input.addEventListener('keydown', (e) => {
+      if (list.hidden) return;
+      if (e.key === 'ArrowDown') { active = Math.min(active + 1, items.length - 1); highlight(); e.preventDefault(); }
+      else if (e.key === 'ArrowUp') { active = Math.max(active - 1, 0); highlight(); e.preventDefault(); }
+      else if (e.key === 'Enter' && active >= 0) { choose(items[active]); e.preventDefault(); }
+      else if (e.key === 'Escape') close();
+    });
   }
 
   function positionWithLevel() {
@@ -177,8 +258,12 @@
     $('#fatal').hidden = false;
   }
 
+  /** เบอร์ติดต่อของประชุมนี้ (ไม่มี ใช้เบอร์กลางจากแท็บตั้งค่าทั่วไป) */
   function contactLine() {
-    return config.contact_phone ? 'สอบถามเพิ่มเติม โทร ' + config.contact_phone : '';
+    const phone = (meeting && meeting.organizer_phone) || config.contact_phone;
+    if (!phone) return '';
+    const who = meeting && meeting.organizer_group ? ' ' + meeting.organizer_group : '';
+    return 'สอบถามเพิ่มเติม' + who + ' โทร ' + phone;
   }
 
   /* ---------------------------------------------------------- เงื่อนไข */
@@ -212,12 +297,21 @@
     }
     $('#meetingType').textContent = meeting.type === 'workshop' ? 'ประชุมเชิงปฏิบัติการ' : 'ประชุม';
     $('#meetingMode').textContent = MODE_LABEL[meeting.attend_mode] || '';
+    if (meeting.meeting_note) {
+      $('#meetingNoteText').textContent = meeting.meeting_note; // แสดงการขึ้นบรรทัดด้วย CSS pre-line
+      $('#meetingNote').hidden = false;
+    }
+    const org = [meeting.organizer_group, meeting.organizer_division].filter(Boolean).join(' ');
+    if (org) {
+      $('#meetingOrg').textContent = org + (meeting.organizer_phone ? ' · โทร ' + meeting.organizer_phone : '');
+      $('#orgRow').hidden = false;
+    }
     $('#meetingHeader').hidden = false;
     document.title = 'ตอบรับ: ' + meeting.name;
   }
 
   function payClass(v) {
-    if (v === 'ผู้จัดรับผิดชอบ') return 'pay-org';
+    if (v === 'เบิกจากผู้จัด') return 'pay-org';
     if (v === 'เบิกจากต้นสังกัด') return 'pay-self';
     return '';
   }
@@ -447,11 +541,13 @@
   }
 
   function renderDone(data, res) {
+    saveProfile();
     form.hidden = true;
     $('#doneTitle').textContent = res.updated ? 'ปรับปรุงข้อมูลการตอบรับแล้ว' : 'ส่งแบบตอบรับเรียบร้อยแล้ว';
-    let doneText = res.emailSent === false
-      ? 'ระบบบันทึกข้อมูลแล้ว แต่ส่งอีเมลยืนยันไม่สำเร็จ'
-      : 'ระบบส่งอีเมลยืนยันไปที่ ' + data.email + ' แล้ว';
+    const emailed = res.emailSent !== false;
+    let doneText = emailed
+      ? 'ระบบได้ส่งข้อมูลทั้งหมดไปที่อีเมล ' + data.email + ' แล้ว'
+      : 'ระบบบันทึกข้อมูลแล้ว แต่ส่งอีเมลยืนยันไม่สำเร็จ';
     if (data.attendance === ONLINE) {
       doneText += meeting.online_ready && res.emailSent !== false
         ? ' ลิงก์และรหัสเข้าร่วมประชุมออนไลน์อยู่ในอีเมลฉบับนี้'
@@ -480,7 +576,9 @@
       tr.insertCell().textContent = k;
       tr.insertCell().textContent = v;
     });
-    $('#doneEdit').textContent = 'หากต้องการแก้ไขหรือยกเลิก ให้กรอกแบบตอบรับนี้อีกครั้งด้วยอีเมลเดิม ระบบจะใช้ข้อมูลล่าสุด ' + contactLine();
+    $('#doneEdit').textContent = emailed
+      ? 'หากต้องการแก้ไขข้อมูล ให้ตอบกลับผ่านอีเมลดังกล่าว ' + contactLine()
+      : 'กรุณาติดต่อผู้จัดเพื่อยืนยันข้อมูล ' + contactLine();
     $('#done').hidden = false;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -644,8 +742,8 @@
     fillSelect(field('food'), lists.food || []);
     renderTravelOptions(lists.travel || []);
     fillSelect(field('province'), window.PROVINCES, { other: false, placeholder: '— เลือกจังหวัด —' });
-    const dl = $('#unitList');
-    (data.units || []).forEach((u) => dl.append(new Option(u)));
+    setupCombo(field('unit'), data.units || []);
+    fillLevel();
 
     renderExpense();
 
@@ -653,6 +751,7 @@
     form.addEventListener('change', updateConditional);
     $('#nextBtn').addEventListener('click', next);
     $('#backBtn').addEventListener('click', back);
+    $('#clearProfileBtn').addEventListener('click', clearProfile);
     form.addEventListener('submit', (e) => { e.preventDefault(); next(); });
 
     $('#loading').hidden = true;
@@ -674,9 +773,78 @@
 
   function startForm() {
     renderAttendOptions();
+    applyProfile();
     form.hidden = false;
     showStep();
     updateConditional();
+  }
+
+  /* ------------------------------------------- จำข้อมูลในเครื่องของผู้ตอบ
+     เก็บเฉพาะข้อมูลประจำตัว (ไม่เก็บอาหาร/อาหารที่แพ้/การเข้าร่วม) ใน localStorage ของเบราว์เซอร์นี้เท่านั้น
+     ไม่ส่งไปที่ใด และลบได้ด้วยปุ่ม "ไม่ใช่ฉัน / ล้างข้อมูล" */
+  const PROFILE_KEY = 'rsvp_profile_v1';
+  const PROFILE_FIELDS = ['prefix', 'prefix_other', 'first_name', 'last_name', 'position', 'position_other',
+    'level', 'unit', 'province', 'phone', 'email'];
+
+  function saveProfile() {
+    if (!field('remember').checked) { clearProfileStorage(); return; }
+    const p = {};
+    PROFILE_FIELDS.forEach((k) => { p[k] = field(k).value; });
+    p.saved_at = new Date().toISOString().slice(0, 10);
+    storageSet(PROFILE_KEY, p);
+  }
+
+  function clearProfileStorage() {
+    try { window.localStorage.removeItem(PROFILE_KEY); } catch (e) { /* ไม่เป็นไร */ }
+  }
+
+  /** ตั้งค่าช่อง select ถ้ามีตัวเลือกนั้น ไม่มีให้ใช้ "อื่น ๆ (ระบุ)" แทน */
+  function setSelectOrOther(name, value, otherValue) {
+    const sel = field(name);
+    if (!value) return;
+    if ([...sel.options].some((o) => o.value === value)) {
+      sel.value = value;
+      if (value === OTHER && sel.dataset.other) field(sel.dataset.other).value = otherValue || '';
+    } else if (sel.dataset.other && [...sel.options].some((o) => o.value === OTHER)) {
+      sel.value = OTHER;
+      field(sel.dataset.other).value = value; // ตัวเลือกเดิมถูกเอาออกจากรายการ เก็บเป็นข้อความที่ระบุเอง
+    }
+  }
+
+  function applyProfile() {
+    const p = storageGet(PROFILE_KEY);
+    if (!p || typeof p !== 'object' || !p.first_name) return;
+    setSelectOrOther('prefix', p.prefix, p.prefix_other);
+    field('first_name').value = p.first_name || '';
+    field('last_name').value = p.last_name || '';
+    setSelectOrOther('position', p.position, p.position_other);
+    fillLevel();
+    if (p.level && [...field('level').options].some((o) => o.value === p.level)) field('level').value = p.level;
+    field('unit').value = p.unit || '';
+    if (p.province && window.PROVINCES.includes(p.province)) field('province').value = p.province;
+    field('phone').value = p.phone || '';
+    field('email').value = p.email || '';
+    $('#prefillName').textContent = '(' + [p.first_name, p.last_name].filter(Boolean).join(' ') + ')';
+    $('#prefillBar').hidden = false;
+  }
+
+  function clearProfile() {
+    clearProfileStorage();
+    PROFILE_FIELDS.forEach((k) => { field(k).value = ''; });
+    fillLevel();
+    $('#prefillBar').hidden = true;
+    updateConditional();
+    toastless('ล้างข้อมูลที่จำไว้แล้ว');
+    field('prefix').focus();
+  }
+
+  /** ข้อความสั้น ๆ แทนแถบเติมข้อมูล (หน้านี้ไม่มี toast) */
+  function toastless(msg) {
+    const box = $('#stepError');
+    box.textContent = msg;
+    box.classList.add('info');
+    box.hidden = false;
+    setTimeout(() => { box.hidden = true; box.classList.remove('info'); }, 2500);
   }
 
   init();

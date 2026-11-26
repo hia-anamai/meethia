@@ -22,7 +22,12 @@ const MEETING_HEADERS = [
   'venue', 'close_date', 'capacity', 'status',
   'pay_food', 'pay_lodging', 'pay_travel', 'pay_note', 'link', 'attend_mode',
   'online_platform', 'online_link', 'online_user', 'online_password',
+  'organizer_division', 'organizer_group', 'organizer_phone', 'meeting_note',
 ];
+
+// ผู้จัดประชุม (กอง กลุ่ม เบอร์โทร) เป็นข้อมูลสาธารณะ แสดงในแบบตอบรับและอีเมล
+const ORGANIZER_FIELDS = ['organizer_division', 'organizer_group', 'organizer_phone'];
+const DEFAULT_DIVISION = 'กองประเมินผลกระทบต่อสุขภาพ';
 
 // ข้อมูลเข้าประชุมออนไลน์: ไม่ส่งออกทาง API สาธารณะ ส่งทางอีเมลให้ผู้เข้าร่วมแบบ Online เท่านั้น
 const ONLINE_FIELDS = ['online_platform', 'online_link', 'online_user', 'online_password'];
@@ -38,7 +43,13 @@ const RESPONSE_HEADERS = [
   'ack_expense', 'pay_food', 'pay_lodging', 'pay_travel', 'consent',
 ];
 
-const PAY_OPTIONS = ['ผู้จัดรับผิดชอบ', 'เบิกจากต้นสังกัด', 'ไม่มี'];
+const PAY_OPTIONS = ['เบิกจากผู้จัด', 'เบิกจากต้นสังกัด', 'ไม่มี'];
+const LEGACY_PAY = { 'ผู้จัดรับผิดชอบ': 'เบิกจากผู้จัด' }; // ชื่อเดิมที่อาจยังอยู่ในชีต
+
+function payLabel_(v) {
+  const s = String(v || '').trim() || 'ไม่มี';
+  return LEGACY_PAY[s] || s;
+}
 const ATTEND = { ONSITE: 'On-site', ONLINE: 'Online', NO: 'ไม่เข้าร่วม' };
 const ROOM_TYPES = ['พักคู่', 'พักเดี่ยว'];
 const BANGKOK = 'กรุงเทพมหานคร';
@@ -202,6 +213,39 @@ function publicConfig_() {
   };
 }
 
+/** ข้อความหลายบรรทัด: ตัดช่องว่างซ้ำในแต่ละบรรทัด แต่คงการขึ้นบรรทัดใหม่ไว้ */
+function cleanNote_(v) {
+  return String(v == null ? '' : v)
+    .replace(/\r/g, '')
+    .split('\n')
+    .map(function (line) { return line.replace(/[ \t]+/g, ' ').trim(); })
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+    .slice(0, 1500);
+}
+
+/** แปลงข้อความหลายบรรทัดเป็น HTML ที่ปลอดภัยสำหรับอีเมล */
+function noteHtml_(v) {
+  return esc_(v).replace(/\n/g, '<br>');
+}
+
+function organizerText_(m) {
+  return [m.organizer_group, m.organizer_division].filter(Boolean).join(' ');
+}
+
+function contactPhone_(m) {
+  return String((m && m.organizer_phone) || getConfig_().contact_phone || '').trim();
+}
+
+/** เติมหัวคอลัมน์ที่ยังไม่มี (ชีตที่สร้างก่อนเพิ่มคอลัมน์ใหม่) */
+function ensureHeaders_(sh, headers) {
+  const cur = sh.getRange(1, 1, 1, headers.length).getValues()[0];
+  let changed = false;
+  headers.forEach(function (h, i) { if (String(cur[i] || '').trim() === '') { cur[i] = h; changed = true; } });
+  if (changed) sh.getRange(1, 1, 1, headers.length).setValues([cur]).setFontWeight('bold');
+}
+
 function getMeeting_(id) {
   if (!id) return null;
   const rows = readTable_(SHEET.MEETINGS);
@@ -233,10 +277,14 @@ function publicMeeting_(m) {
     date_text: String(m.date_text || ''),
     venue: String(m.venue || ''),
     close_date: isoDate_(m.close_date),
-    pay_food: String(m.pay_food || 'ไม่มี'),
-    pay_lodging: String(m.pay_lodging || 'ไม่มี'),
-    pay_travel: String(m.pay_travel || 'ไม่มี'),
+    pay_food: payLabel_(m.pay_food),
+    pay_lodging: payLabel_(m.pay_lodging),
+    pay_travel: payLabel_(m.pay_travel),
     pay_note: String(m.pay_note || ''),
+    organizer_division: String(m.organizer_division || '').trim(),
+    organizer_group: String(m.organizer_group || '').trim(),
+    organizer_phone: String(m.organizer_phone || '').trim(),
+    meeting_note: String(m.meeting_note || '').trim(), // หมายเหตุอื่น ๆ จากผู้จัด (ไม่ใช่ค่าใช้จ่าย)
     open: state.open,
     closed_reason: state.reason,
   };
@@ -495,23 +543,48 @@ function sendConfirmation_(d, meeting, updated) {
     return v ? '<tr><td style="padding:4px 12px 4px 0;color:#555">' + esc_(k) + '</td><td style="padding:4px 0">' + esc_(v) + '</td></tr>' : '';
   };
 
+  const section = function (title) {
+    return '<tr><td colspan="2" style="padding:14px 0 4px;font-weight:bold;color:#0a6b73">' + esc_(title) + '</td></tr>';
+  };
+
   let html = '<div style="font-family:Tahoma,sans-serif;font-size:14px;line-height:1.6">';
   html += '<p>เรียน ' + esc_(d.prefix + d.first_name + ' ' + d.last_name) + '</p>';
-  html += '<p>' + (updated ? 'ระบบได้ปรับปรุงข้อมูลการตอบรับของท่านแล้ว' : 'ขอบคุณที่ตอบรับการประชุม') + '</p>';
+  html += '<p>' + (updated ? 'ระบบได้ปรับปรุงข้อมูลการตอบรับของท่านแล้ว' : 'ขอบคุณที่ตอบรับการประชุม') +
+    ' ข้อมูลทั้งหมดที่ท่านกรอกมีดังนี้</p>';
   html += '<table style="border-collapse:collapse">';
-  html += row('การประชุม', m.name);
+  html += section('การประชุม');
+  html += row('ชื่อการประชุม', m.name);
   html += row('วันที่', m.date_text);
   html += row('สถานที่', m.venue);
-  html += row('การเข้าร่วม', d.attendance);
+  html += row('ผู้จัด', organizerText_(m));
+  html += section('ข้อมูลผู้เข้าร่วม');
+  html += row('ชื่อ-นามสกุล', d.prefix + d.first_name + ' ' + d.last_name);
+  html += row('ตำแหน่ง', d.position);
+  html += row('หน่วยงาน', d.unit);
+  html += row('จังหวัด', d.province);
+  html += row('โทรศัพท์', d.phone);
+  html += row('อีเมล', d.email);
+  html += section('การเข้าร่วม');
+  html += row('รูปแบบการเข้าร่วม', d.attendance);
   html += row('ประเภทอาหาร', d.food);
-  html += row('ที่พัก', d.need_lodging);
-  if (d.need_lodging === 'ต้องการ') {
-    html += row('วันเข้าพัก – วันออก', thaiDate_(d.check_in) + ' – ' + thaiDate_(d.check_out));
-    html += row('ประเภทห้อง', d.room_type);
-    html += row('ผู้พักร่วม', d.roommate);
+  html += row('อาหารที่แพ้', d.allergy);
+  html += row('หมายเหตุ', d.absence_note);
+  if (d.need_lodging) {
+    html += section('ที่พักและการเดินทาง');
+    html += row('ที่พัก', d.need_lodging);
+    if (d.need_lodging === 'ต้องการ') {
+      html += row('วันเข้าพัก – วันออก', thaiDate_(d.check_in) + ' – ' + thaiDate_(d.check_out));
+      html += row('ประเภทห้อง', d.room_type);
+      html += row('ผู้พักร่วม', d.roommate);
+    }
+    html += row('การเดินทาง', d.travel);
+    html += row('หมายเหตุที่พัก', d.lodging_note);
   }
-  html += row('การเดินทาง', d.travel);
   html += '</table>';
+  if (m.meeting_note) {
+    html += '<div style="margin-top:16px;padding:12px 16px;background:#f4f7f8;border-radius:8px">' +
+      '<b>ข้อมูลเพิ่มเติมจากผู้จัด</b><br>' + noteHtml_(m.meeting_note) + '</div>';
+  }
   if (d.attendance === ATTEND.ONLINE) html += onlineInfoHtml_(onlineInfo_(meeting));
   html += '<p style="margin-top:16px"><b>เงื่อนไขค่าใช้จ่าย</b><br>';
   html += 'ค่าอาหารและอาหารว่าง: ' + esc_(m.pay_food) + '<br>';
@@ -522,16 +595,21 @@ function sendConfirmation_(d, meeting, updated) {
   if (d.need_lodging === 'ต้องการ') {
     html += '<p>ผู้จัดจะแจ้งรายละเอียดที่พักทางอีเมลก่อนวันประชุม</p>';
   }
-  html += '<p>หากต้องการแก้ไขหรือยกเลิก ให้กรอกแบบตอบรับอีกครั้งด้วยอีเมลเดิม ระบบจะใช้ข้อมูลล่าสุด';
-  if (cfg.contact_phone) html += ' หรือติดต่อ ' + esc_(cfg.contact_phone);
+  html += '<p style="margin-top:16px"><b>หากต้องการแก้ไขข้อมูล กรุณาตอบกลับอีเมลฉบับนี้</b> พร้อมระบุสิ่งที่ต้องการแก้ไข';
+  const phone = contactPhone_(m);
+  if (phone) html += ' หรือติดต่อ ' + (m.organizer_group ? esc_(m.organizer_group) + ' ' : '') + 'โทร ' + esc_(phone);
   html += '</p></div>';
 
-  MailApp.sendEmail({
+  const mail = {
     to: d.email,
     subject: (updated ? '[แก้ไข] ' : '') + 'ยืนยันการตอบรับ: ' + m.name,
     htmlBody: html,
     name: getConfig_().email_sender_name || cfg.org_name,
-  });
+  };
+  // ให้การตอบกลับไปถึงผู้จัด (ตั้งได้ในแท็บตั้งค่าทั่วไป ถ้าไม่ตั้งจะตอบกลับไปที่บัญชีเจ้าของ Apps Script)
+  const replyTo = String(getConfig_().reply_to_email || '').trim();
+  if (replyTo) mail.replyTo = replyTo;
+  MailApp.sendEmail(mail);
 }
 
 /* ----------------------------------------------------- ตั้งค่าครั้งแรก */
@@ -545,6 +623,8 @@ function setup() {
     if (sh.getLastRow() === 0) {
       sh.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
       sh.setFrozenRows(1);
+    } else {
+      ensureHeaders_(sh, headers);
     }
     return sh;
   };
@@ -576,6 +656,11 @@ function setup() {
   };
   mt.getRange('C2:C').setDataValidation(rule(['meeting', 'workshop']));
   mt.getRange('J2:J').setDataValidation(rule(['เปิด', 'ปิด']));
+  // เปลี่ยนชื่อตัวเลือกค่าใช้จ่ายแบบเดิมในชีตเป็นชื่อปัจจุบัน
+  if (mt.getLastRow() > 1) {
+    const payRange = mt.getRange(2, 11, mt.getLastRow() - 1, 3);
+    payRange.setValues(payRange.getValues().map(function (r) { return r.map(function (v) { return v === '' ? v : payLabel_(v); }); }));
+  }
   mt.getRange('K2:M').setDataValidation(rule(PAY_OPTIONS));
   mt.getRange('P2:P').setDataValidation(rule(MODES));
   mt.getRange('P1').setNote('hybrid = On-site และ Online\nonsite = On-site อย่างเดียว\nonline = Online อย่างเดียว');
@@ -645,6 +730,8 @@ function setup() {
   const have = readTable_(SHEET.CONFIG).map(function (r) { return String(r.key).trim(); });
   [
     ['google_client_id', '', 'OAuth Client ID (Web) จาก Google Cloud Console สำหรับปุ่ม Sign in with Google ในหน้าผู้ดูแล'],
+    ['default_division', DEFAULT_DIVISION, 'ชื่อกองผู้จัดที่เติมให้อัตโนมัติเมื่อเพิ่มประชุมใหม่'],
+    ['reply_to_email', '', 'อีเมลที่รับการตอบกลับจากผู้เข้าร่วม (ว่าง = ตอบกลับไปที่บัญชีเจ้าของ Apps Script)'],
     ['admin_emails', owner, 'อีเมล Google ของผู้ดูแล คั่นด้วยจุลภาค (แก้ได้จากหน้าผู้ดูแล แท็บตั้งค่าทั่วไป)'],
   ].forEach(function (row) {
     if (have.indexOf(row[0]) < 0) cfg.appendRow(row);
@@ -659,7 +746,7 @@ function setup() {
 /* ------------------------------------------------------- API ผู้ดูแล */
 
 // ค่าที่แก้ได้จากหน้าผู้ดูแล (google_client_id แก้ได้เฉพาะในชีต เพื่อไม่ให้ตั้งผิดจนเข้าระบบไม่ได้)
-const CONFIG_KEYS = ['site_url', 'contact_phone', 'pdpa_retention_years', 'pdpa_policy_url', 'org_name', 'email_sender_name', 'meeting_id_prefix', 'admin_emails'];
+const CONFIG_KEYS = ['site_url', 'contact_phone', 'pdpa_retention_years', 'pdpa_policy_url', 'org_name', 'email_sender_name', 'meeting_id_prefix', 'admin_emails', 'default_division', 'reply_to_email'];
 
 function idPrefix_() {
   const p = String(getConfig_().meeting_id_prefix || 'HIA').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -691,6 +778,8 @@ function admin_(b) {
       case 'deleteMeeting': return adminDeleteMeeting_(String(b.id || '').trim());
       case 'responses': return adminResponses_(String(b.id || '').trim());
       case 'sendOnlineInfo': return adminSendOnlineInfo_(String(b.id || '').trim());
+      case 'setAbsent': return adminSetAbsent_(String(b.id || '').trim(), String(b.email || ''), auth.email);
+      case 'deleteResponse': return adminDeleteResponse_(String(b.id || '').trim(), String(b.email || ''), auth.email);
       case 'saveLists': return adminSaveLists_(b.lists || {});
       case 'saveUnits': return adminSaveUnits_(b.units || []);
       case 'saveConfig': return adminSaveConfig_(b.values || {}, auth.email);
@@ -840,7 +929,15 @@ function adminSaveMeeting_(m, originalId) {
     online_link: String(m.online_link || '').trim().slice(0, 500),
     online_user: clean_(m.online_user, 120),
     online_password: clean_(m.online_password, 120),
+    organizer_division: clean_(m.organizer_division, 150),
+    organizer_group: clean_(m.organizer_group, 150),
+    organizer_phone: clean_(m.organizer_phone, 60),
+    // หมายเหตุหลายบรรทัด: คงการขึ้นบรรทัดใหม่ไว้
+    meeting_note: cleanNote_(m.meeting_note),
   };
+  if (d.organizer_phone && !/^[0-9+\-\s(),.ต่อ]+$/.test(d.organizer_phone)) {
+    return { ok: false, error: 'เบอร์โทรติดต่อใช้ได้เฉพาะตัวเลข เว้นวรรค - และคำว่า ต่อ' };
+  }
   if (d.online_link && !/^https:\/\/\S+$/.test(d.online_link)) return { ok: false, error: 'ลิงก์ประชุมออนไลน์ต้องขึ้นต้นด้วย https://' };
   if (!d.name) return { ok: false, error: 'กรุณากรอกชื่อการประชุม' };
   if (['meeting', 'workshop'].indexOf(d.type) < 0) return { ok: false, error: 'ประเภทการประชุมไม่ถูกต้อง' };
@@ -873,12 +970,17 @@ function adminSaveMeeting_(m, originalId) {
     safeCell_(d.venue), toDate_(d.close_date), d.capacity, d.status,
     d.pay_food, d.pay_lodging, d.pay_travel, safeCell_(d.pay_note),
   ]];
+  ensureHeaders_(sh, MEETING_HEADERS);
   const row = existing ? existing._row : lastRowIn_(sh, 1) + 1;
   sh.getRange(row, 1, 1, 14).setValues(values);
   sh.getRange(row, MEETING_HEADERS.indexOf('attend_mode') + 1).setValue(d.attend_mode);
   const onlineCol = MEETING_HEADERS.indexOf('online_platform') + 1;
   sh.getRange(row, onlineCol, 1, ONLINE_FIELDS.length).setNumberFormat('@')
     .setValues([ONLINE_FIELDS.map(function (k) { return d.attend_mode === 'onsite' ? '' : d[k]; })]);
+  sh.getRange(row, MEETING_HEADERS.indexOf('meeting_note') + 1).setValue(safeCell_(d.meeting_note));
+  const orgCol = MEETING_HEADERS.indexOf('organizer_division') + 1;
+  sh.getRange(row, orgCol, 1, ORGANIZER_FIELDS.length).setNumberFormat('@')
+    .setValues([ORGANIZER_FIELDS.map(function (k) { return k === 'organizer_phone' ? d[k] : safeCell_(d[k]); })]); // คอลัมน์เป็นข้อความ เลข 0 นำหน้าไม่หาย
   sh.getRange(row, 4, 1, 2).setNumberFormat('yyyy-mm-dd');
   sh.getRange(row, 8).setNumberFormat('yyyy-mm-dd');
   return { ok: true, id: d.id };
@@ -903,6 +1005,48 @@ function adminResponses_(id) {
   return { ok: true, headers: RESPONSE_HEADERS, rows: rows };
 }
 
+/** หาแถวคำตอบด้วย รหัสประชุม + อีเมล (คีย์เดียวกับที่ใช้ตอนลงทะเบียน) */
+function findResponse_(id, email) {
+  email = String(email || '').trim().toLowerCase();
+  if (!id || !email) return null;
+  return readTable_(SHEET.RESPONSES).find(function (r) {
+    return String(r.meeting_id).trim() === id && String(r.email).trim().toLowerCase() === email;
+  }) || null;
+}
+
+/**
+ * เปลี่ยนเป็น "ไม่เข้าร่วม" เช่น ผู้เข้าร่วมแจ้งว่าไม่สะดวกแล้ว
+ * เก็บประวัติไว้ แต่คืนที่นั่ง On-site และล้างข้อมูลอาหาร/ที่พัก เพื่อไม่ให้ถูกนับในยอด
+ */
+function adminSetAbsent_(id, email, adminEmail) {
+  const r = findResponse_(id, email);
+  if (!r) return { ok: false, error: 'ไม่พบรายชื่อนี้ (อาจถูกลบหรือแก้ไขไปแล้ว)' };
+  const sh = ss_().getSheetByName(SHEET.RESPONSES);
+  const stamp = Utilities.formatDate(new Date(), tz_(), 'yyyy-MM-dd HH:mm');
+  const note = [String(r.absence_note || '').trim(), 'ผู้ดูแลเปลี่ยนเป็นไม่เข้าร่วม ' + stamp].filter(Boolean).join(' · ');
+  const updates = {
+    attendance: ATTEND.NO, food: '', allergy: '', absence_note: note,
+    need_lodging: '', check_in: '', check_out: '', room_type: '', roommate: '', travel: '', lodging_note: '',
+    updated_at: new Date(),
+  };
+  Object.keys(updates).forEach(function (h) {
+    const col = RESPONSE_HEADERS.indexOf(h) + 1;
+    if (col > 0) sh.getRange(r._row, col).setValue(updates[h] instanceof Date ? updates[h] : safeCell_(updates[h]));
+  });
+  console.log('setAbsent', id, email, 'by', adminEmail);
+  return { ok: true };
+}
+
+/** ลบรายชื่อออกถาวร เช่น ลงทะเบียนผิดหรือซ้ำ */
+function adminDeleteResponse_(id, email, adminEmail) {
+  const r = findResponse_(id, email);
+  if (!r) return { ok: false, error: 'ไม่พบรายชื่อนี้ (อาจถูกลบไปแล้ว)' };
+  ss_().getSheetByName(SHEET.RESPONSES).deleteRow(r._row);
+  invalidateUnits_();
+  console.log('deleteResponse', id, email, 'by', adminEmail);
+  return { ok: true };
+}
+
 /** ส่งข้อมูลเข้าประชุมออนไลน์ให้ผู้ลงทะเบียนแบบ Online ทุกคนของประชุมนี้ */
 function adminSendOnlineInfo_(id) {
   const meeting = getMeeting_(id);
@@ -925,7 +1069,8 @@ function adminSendOnlineInfo_(id) {
     html += '<p>เรียน ' + esc_(r.prefix + r.first_name + ' ' + r.last_name) + '</p>';
     html += '<p>ข้อมูลสำหรับเข้าร่วม' + esc_(m.name) + (m.date_text ? ' วันที่ ' + esc_(m.date_text) : '') + '</p>';
     html += onlineInfoHtml_(info);
-    if (cfg.contact_phone) html += '<p>สอบถามเพิ่มเติม โทร ' + esc_(cfg.contact_phone) + '</p>';
+    const phone = contactPhone_(m);
+    if (phone) html += '<p>สอบถามเพิ่มเติม ' + (m.organizer_group ? esc_(m.organizer_group) + ' ' : '') + 'โทร ' + esc_(phone) + '</p>';
     html += '</div>';
     try {
       MailApp.sendEmail({
@@ -983,6 +1128,9 @@ function adminSaveConfig_(values, currentEmail) {
   const years = Number(values.pdpa_retention_years);
   if (!(years >= 1 && years <= 20)) return { ok: false, error: 'ระยะเวลาเก็บข้อมูลต้องอยู่ระหว่าง 1–20 ปี' };
   if (values.site_url && !/^https?:\/\//.test(values.site_url)) return { ok: false, error: 'ที่อยู่เว็บต้องขึ้นต้นด้วย https://' };
+  if (values.reply_to_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(values.reply_to_email).trim())) {
+    return { ok: false, error: 'อีเมลรับการตอบกลับไม่ถูกต้อง' };
+  }
   if ('meeting_id_prefix' in values) {
     values.meeting_id_prefix = String(values.meeting_id_prefix || '').trim().toUpperCase();
     if (!/^[A-Z][A-Z0-9]{0,9}$/.test(values.meeting_id_prefix)) {

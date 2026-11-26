@@ -299,3 +299,39 @@
 #meetingCount, #responseCount { display: flex; align-items: center; gap: 8px; }
 .data .sk-line { margin: 4px 0; }
 .btn.small .spinner { margin-right: 6px; }
+
+/* ------------------------------------------------ หน้าผู้ดูแลบนจอแคบ */
+@media (max-width: 720px) {
+  .wide-wrap { padding-bottom: 96px; }
+  .admin-top { padding: 8px 8px 8px 14px; }
+  .admin-top h1 { font-size: .9rem; line-height: 1.3; }
+  .admin-top h1::before { width: 22px; height: 22px; flex: 0 0 auto; }
+  #logoutBtn { white-space: nowrap; padding: 6px 12px; }
+
+  /* แท็บ 2x2 เห็นครบทุกแท็บ ไม่ต้องเลื่อน */
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; width: 100%; border-radius: 18px; }
+  .tabs button { padding: 9px 8px; }
+
+  .toolbar { gap: 10px; }
+  #newMeetingBtn { width: 100%; }
+
+  /* ตารางประชุมเป็นการ์ด: ยอดแต่ละช่องมีชื่อกำกับ */
+  #meetingTable thead { display: none; }
+  #meetingTable tbody tr { display: grid; grid-template-columns: repeat(4, 1fr); padding: 14px 16px; gap: 8px 10px; }
+  #meetingTable td { padding: 0; border: 0; }
+  #meetingTable td.mcell { grid-column: 1 / -1; min-width: 0; }
+  #meetingTable td.mdate, #meetingTable td.mstatus { grid-column: span 2; }
+  #meetingTable td.num { text-align: left; }
+  #meetingTable td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    font-family: var(--font);
+  }
+  #meetingTable td.empty { grid-column: 1 / -1; }
+}
+
+/* ปุ่มจัดการรายชื่อ */
+#responseTable td.row-actions { display: flex; gap: 6px; align-items: center; white-space: nowrap; }

@@ -22,10 +22,17 @@
         <div><dt>สถานที่</dt><dd id="meetingVenue"></dd></div>
         <div id="closeRow"><dt>ปิดรับ</dt><dd id="meetingClose"></dd></div>
         <div id="seatRow" hidden><dt>ที่นั่ง</dt><dd id="meetingSeats"></dd></div>
+        <div id="orgRow" class="meta-wide" hidden><dt>ผู้จัด</dt><dd id="meetingOrg"></dd></div>
       </dl>
       <span class="badge" id="meetingType"></span>
       <span class="badge" id="meetingMode"></span>
     </header>
+
+    <!-- หมายเหตุอื่น ๆ จากผู้จัด (ไม่ใช่ค่าใช้จ่าย) แสดงทุกขั้นตอน -->
+    <section class="card meeting-note" id="meetingNote" hidden>
+      <h2>ข้อมูลเพิ่มเติมจากผู้จัด</h2>
+      <p id="meetingNoteText"></p>
+    </section>
 
     <!-- หน้าแรก (เปิดเว็บโดยไม่มีรหัสประชุม) -->
     <div id="welcome" hidden>
@@ -96,6 +103,7 @@
         <div class="pdpa">
           <p>ข้าพเจ้ายินยอมให้<span class="js-org">กรมอนามัย</span> เก็บรวบรวม ใช้ และประมวลผลข้อมูลส่วนบุคคล ได้แก่ คำนำหน้า ชื่อ-นามสกุล ตำแหน่ง หน่วยงานต้นสังกัด จังหวัด หมายเลขโทรศัพท์ อีเมล ข้อมูลอาหารและการแพ้อาหาร และข้อมูลการเดินทางและที่พัก (กรณีประชุมเชิงปฏิบัติการ)</p>
           <p>เพื่อใช้ในการลงทะเบียนเข้าร่วมประชุม การติดต่อประสานงาน การจัดเตรียมสถานที่ อาหาร และที่พัก และการจัดทำเอกสารประกอบการเบิกจ่ายงบประมาณ โดยจะไม่นำไปใช้เพื่อวัตถุประสงค์อื่น</p>
+          <p>หากท่านเลือก "จำข้อมูลไว้ในเครื่องนี้" ชื่อ ตำแหน่ง หน่วยงาน เบอร์โทร และอีเมล จะถูกเก็บไว้ในเบราว์เซอร์ของเครื่องท่านเท่านั้น เพื่อเติมให้อัตโนมัติในการตอบรับครั้งถัดไป และลบได้ทุกเมื่อด้วยปุ่ม "ไม่ใช่ฉัน / ล้างข้อมูล"</p>
           <p>ข้อมูลจะถูกเก็บรักษาไว้เป็นระยะเวลา <b><span id="pdpaYears">5</span> ปี</b> นับจากวันประชุม แล้วจึงลบหรือทำลาย ท่านมีสิทธิถอนความยินยอม ขอเข้าถึง แก้ไข หรือขอให้ลบข้อมูลได้ตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 <span id="pdpaLinkWrap">รายละเอียดเพิ่มเติม <a id="pdpaLink" target="_blank" rel="noopener">นโยบายคุ้มครองข้อมูลส่วนบุคคล</a></span></p>
         </div>
         <fieldset>
@@ -109,6 +117,10 @@
       <section class="card step" data-step="person" data-title="ข้อมูลผู้เข้าร่วม" hidden>
         <h2>ข้อมูลผู้เข้าร่วมประชุม</h2>
         <p class="hint">ข้อมูลนี้ใช้ประกอบการเบิกจ่ายงบประมาณ กรุณากรอกให้ตรงกับเอกสารราชการ</p>
+        <div class="prefill-bar" id="prefillBar" hidden>
+          <p><b>เติมข้อมูลจากครั้งก่อนให้แล้ว</b> <span id="prefillName"></span><br>กรุณาตรวจสอบให้ถูกต้อง แก้ไขได้ทุกช่อง</p>
+          <button class="btn ghost small" type="button" id="clearProfileBtn">ไม่ใช่ฉัน / ล้างข้อมูล</button>
+        </div>
         <div class="grid">
           <label class="field">คำนำหน้า <span class="req">*</span>
             <select name="prefix" data-other="prefix_other"></select>
@@ -125,11 +137,10 @@
             <input name="position_other" placeholder="ระบุตำแหน่ง" hidden>
           </label>
           <label class="field">ระดับ <span class="req">*</span>
-            <select name="level" disabled><option value="">— เลือกตำแหน่งก่อน —</option></select>
+            <select name="level"><option value="">— เลือกระดับ —</option></select>
           </label>
           <label class="field wide">หน่วยงาน <span class="req">*</span>
-            <input name="unit" list="unitList" placeholder="พิมพ์เพื่อค้นหา หรือพิมพ์ชื่อหน่วยงานใหม่" autocomplete="organization">
-            <datalist id="unitList"></datalist>
+            <input name="unit" placeholder="พิมพ์เพื่อค้นหา หรือพิมพ์ชื่อหน่วยงานใหม่" autocomplete="off">
           </label>
           <label class="field">จังหวัดที่ตั้งหน่วยงาน <span class="req">*</span>
             <select name="province"></select>
@@ -141,6 +152,10 @@
             <input name="email" type="email" placeholder="ใช้ส่งอีเมลยืนยันการลงทะเบียน" autocomplete="email">
           </label>
         </div>
+        <label class="choice remember">
+          <input type="checkbox" name="remember" checked>
+          <span>จำข้อมูลของฉันไว้ในเครื่องนี้ สำหรับตอบรับครั้งถัดไป<small>ไม่ควรติ๊กถ้าใช้เครื่องร่วมกับผู้อื่น</small></span>
+        </label>
         <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
       </section>
 
@@ -225,9 +240,9 @@
 
     <section class="card" id="done" hidden>
       <h2 id="doneTitle">ส่งแบบตอบรับเรียบร้อยแล้ว</h2>
-      <p id="doneText"></p>
+      <p class="done-text" id="doneText"></p>
+      <p class="note done-edit" id="doneEdit"></p>
       <table class="summary" id="doneSummary"></table>
-      <p class="hint" id="doneEdit"></p>
     </section>
 
     <footer class="foot" id="foot"></footer>

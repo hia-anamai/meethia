@@ -11,31 +11,33 @@ window.MOCK_API = (function () {
       venue: 'ห้องประชุม กรมอนามัย และออนไลน์',
       online_platform: 'Zoom', online_link: 'https://zoom.us/j/1234567890', online_user: '123 456 7890', online_password: 'demo123',
       close_date: '2026-11-10',
-      pay_food: 'ผู้จัดรับผิดชอบ', pay_lodging: 'ไม่มี', pay_travel: 'ไม่มี', pay_note: '',
+      pay_food: 'เบิกจากผู้จัด', pay_lodging: 'ไม่มี', pay_travel: 'ไม่มี', pay_note: '',
       open: true, closed_reason: '',
     },
     'WS-02-2570': {
       id: 'WS-02-2570',
       name: 'ประชุมเชิงปฏิบัติการ (ตัวอย่าง)',
       type: 'workshop',
+      organizer_division: 'กองประเมินผลกระทบต่อสุขภาพ', organizer_group: 'กลุ่มพยากรณ์สุขภาพ', organizer_phone: '02 590 4321',
+      meeting_note: 'แต่งกายสุภาพ\nกรุณานำคอมพิวเตอร์โน้ตบุ๊กมาด้วย\nมีที่จอดรถบริเวณโรงแรม',
       date_start: '2027-01-20', date_end: '2027-01-22',
       date_text: '20–22 มกราคม 2570',
       venue: 'โรงแรมตัวอย่าง กรุงเทพมหานคร',
       close_date: '2027-01-10',
-      pay_food: 'ผู้จัดรับผิดชอบ', pay_lodging: 'ผู้จัดรับผิดชอบ', pay_travel: 'เบิกจากต้นสังกัด',
-      pay_note: 'ผู้จัดรับผิดชอบค่าที่พักห้องพักคู่ ผู้ที่เลือกพักเดี่ยวชำระส่วนต่างเอง',
+      pay_food: 'เบิกจากผู้จัด', pay_lodging: 'เบิกจากผู้จัด', pay_travel: 'เบิกจากต้นสังกัด',
+      pay_note: 'เบิกค่าที่พักห้องพักคู่จากผู้จัด ผู้ที่เลือกพักเดี่ยวชำระส่วนต่างเอง',
       open: true, closed_reason: '',
     },
     'FULL-01-2570': {
       id: 'FULL-01-2570', name: 'ประชุมที่ On-site เต็มแล้ว (มี Online)', type: 'meeting', attend_mode: 'hybrid', capacity: 1,
       date_start: '2027-02-05', date_end: '2027-02-05', date_text: '5 กุมภาพันธ์ 2570', venue: 'ห้องประชุม กรมอนามัย',
-      close_date: '2027-02-01', pay_food: 'ผู้จัดรับผิดชอบ', pay_lodging: 'ไม่มี', pay_travel: 'ไม่มี', pay_note: '',
+      close_date: '2027-02-01', pay_food: 'เบิกจากผู้จัด', pay_lodging: 'ไม่มี', pay_travel: 'ไม่มี', pay_note: '',
       open: true, closed_reason: '',
     },
     'FULLWS-01-2570': {
       id: 'FULLWS-01-2570', name: 'ประชุมเชิงปฏิบัติการที่เต็มแล้ว', type: 'workshop', attend_mode: 'onsite', capacity: 1,
       date_start: '2027-02-10', date_end: '2027-02-11', date_text: '10–11 กุมภาพันธ์ 2570', venue: 'โรงแรมตัวอย่าง',
-      close_date: '2027-02-01', pay_food: 'ผู้จัดรับผิดชอบ', pay_lodging: 'ผู้จัดรับผิดชอบ', pay_travel: 'เบิกจากต้นสังกัด', pay_note: '',
+      close_date: '2027-02-01', pay_food: 'เบิกจากผู้จัด', pay_lodging: 'เบิกจากผู้จัด', pay_travel: 'เบิกจากต้นสังกัด', pay_note: '',
       open: true, closed_reason: '',
     },
     'ONL-01-2570': {
@@ -83,6 +85,7 @@ window.MOCK_API = (function () {
     site_url: location.origin + '/', contact_phone: config.contact_phone, pdpa_retention_years: '5',
     pdpa_policy_url: config.pdpa_policy_url, org_name: config.org_name, email_sender_name: 'กรมอนามัย - ระบบตอบรับการประชุม',
     meeting_id_prefix: 'HIA',
+    default_division: 'กองประเมินผลกระทบต่อสุขภาพ',
     admin_emails: 'admin@example.com',
   };
   Object.values(meetings).forEach((m) => {
@@ -133,7 +136,7 @@ window.MOCK_API = (function () {
             .sort((a, c) => (a.date_start < c.date_start ? 1 : -1)),
           nextId: nextId(),
           lists, units: unitSheet, config: adminConfig,
-          payOptions: ['ผู้จัดรับผิดชอบ', 'เบิกจากต้นสังกัด', 'ไม่มี'],
+          payOptions: ['เบิกจากผู้จัด', 'เบิกจากต้นสังกัด', 'ไม่มี'],
         };
       case 'saveMeeting': {
         const m = b.meeting;
@@ -156,6 +159,14 @@ window.MOCK_API = (function () {
           ok: true, headers: HEADERS,
           rows: responses.filter((r) => r.meeting_id === b.id).map((r) => HEADERS.map((h) => r[h] || '')),
         };
+      case 'setAbsent':
+      case 'deleteResponse': {
+        const i = responses.findIndex((r) => r.meeting_id === b.id && r.email === b.email);
+        if (i < 0) return { ok: false, error: 'ไม่พบรายชื่อนี้ (อาจถูกลบหรือแก้ไขไปแล้ว)' };
+        if (b.op === 'deleteResponse') responses.splice(i, 1);
+        else Object.assign(responses[i], { attendance: 'ไม่เข้าร่วม', food: '', need_lodging: '', room_type: '', check_in: '', check_out: '' });
+        return { ok: true };
+      }
       case 'sendOnlineInfo': {
         const m = meetings[b.id];
         if (!m || !m.online_link) return { ok: false, error: 'ยังไม่ได้กรอกลิงก์ประชุมออนไลน์' };

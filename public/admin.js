@@ -4,13 +4,16 @@
   const MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
     'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
   const MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  // ค่าที่ผู้ตอบพิมพ์เพื่อบอกว่า "ไม่มี" (เช่น ช่องอาหารที่แพ้) ไม่ต้องแสดง
+  const EMPTY_WORDS = ['-', '–', '—', '.', 'ไม่มี', 'ไม่แพ้', 'ไม่มีค่ะ', 'ไม่มีครับ', 'no', 'none', 'n/a', 'na', 'nil'];
+  const hasValue = (v) => { const s = String(v == null ? '' : v).trim().toLowerCase(); return !!s && !EMPTY_WORDS.includes(s); };
   const RESPONSE_COLS = [
     ['ชื่อ-นามสกุล', (r) => r.prefix + r.first_name + ' ' + r.last_name],
     ['ตำแหน่ง', (r) => r.position],
     ['หน่วยงาน', (r) => r.unit],
     ['จังหวัด', (r) => r.province],
     ['การเข้าร่วม', (r) => r.attendance],
-    ['อาหาร', (r) => [r.food, r.allergy && 'แพ้: ' + r.allergy].filter(Boolean).join(' · ')],
+    ['อาหาร', (r) => [r.food, hasValue(r.allergy) && 'แพ้: ' + r.allergy].filter(Boolean).join(' · ')],
     ['ที่พัก', (r) => r.need_lodging],
     ['เข้า–ออก', (r) => (r.check_in ? shortDate(r.check_in) + ' – ' + shortDate(r.check_out) : '')],
     ['ห้อง', (r) => [r.room_type, r.roommate && 'กับ ' + r.roommate].filter(Boolean).join(' ')],
@@ -105,7 +108,10 @@
     if (m.date_text) s += ' ในวันที่ ' + m.date_text;
     s += ' ผ่านแบบตอบรับออนไลน์';
     if (m.close_date) s += ' ภายในวันที่ ' + thaiDate(m.close_date);
-    return s + ' ที่ ' + link;
+    s += ' ที่ ' + link;
+    const phone = m.organizer_phone || (data.config && data.config.contact_phone) || '';
+    if (phone) s += ' สอบถามเพิ่มเติม' + (m.organizer_group ? ' ' + m.organizer_group : '') + ' โทร ' + phone;
+    return s;
   }
 
   async function copyText(text, okMsg) {
@@ -325,12 +331,13 @@
             el('button', { class: 'btn ghost small', type: 'button', text: 'รายชื่อ (' + c.total + ')', onclick: () => openResponses(m) }),
           ]),
         ]),
-        el('td', { text: m.date_text || thaiRange(m.date_start, m.date_end) }),
-        el('td', {}, [status]),
-        el('td', { class: 'num', text: onsiteText }),
-        el('td', { class: 'num', text: mode === 'onsite' ? '–' : String(c.online) }),
-        el('td', { class: 'num', text: String(c.absent) }),
-        el('td', { class: 'num', text: m.type === 'workshop' ? String(c.lodging) : '–' }),
+        // data-label ใช้แสดงชื่อคอลัมน์เมื่อจอแคบ (ตารางกลายเป็นการ์ด)
+        el('td', { class: 'mdate', 'data-label': 'วันที่', text: m.date_text || thaiRange(m.date_start, m.date_end) }),
+        el('td', { class: 'mstatus', 'data-label': 'สถานะ' }, [status]),
+        el('td', { class: 'num', 'data-label': 'On-site', text: onsiteText }),
+        el('td', { class: 'num', 'data-label': 'Online', text: mode === 'onsite' ? '–' : String(c.online) }),
+        el('td', { class: 'num', 'data-label': 'ไม่มา', text: String(c.absent) }),
+        el('td', { class: 'num', 'data-label': 'ที่พัก', text: m.type === 'workshop' ? String(c.lodging) : '–' }),
       ]));
     });
   }
@@ -362,13 +369,17 @@
     editingId = m ? m.id : null;
     $('#meetingFormTitle').textContent = m ? 'แก้ไขการประชุม' : 'เพิ่มการประชุม';
     $('#meetingError').hidden = true;
-    const v = m || { type: 'meeting', attend_mode: 'hybrid', status: 'เปิด', pay_food: 'ผู้จัดรับผิดชอบ', pay_lodging: 'ไม่มี', pay_travel: 'เบิกจากต้นสังกัด' };
+    const v = m || { type: 'meeting', attend_mode: 'hybrid', status: 'เปิด', pay_food: 'เบิกจากผู้จัด', pay_lodging: 'ไม่มี', pay_travel: 'เบิกจากต้นสังกัด' };
     if (!v.attend_mode) v.attend_mode = v.type === 'workshop' ? 'onsite' : 'hybrid';
-    if (!m) v.id = data.nextId || '';
+    if (!m) {
+      v.id = data.nextId || '';
+      v.organizer_division = (data.config && data.config.default_division) || 'กองประเมินผลกระทบต่อสุขภาพ';
+    }
     $('#idHint').textContent = m ? 'เปลี่ยนไม่ได้' : 'ระบบออกให้อัตโนมัติ (ยืนยันตอนบันทึก)';
     ['id', 'name', 'type', 'attend_mode', 'date_start', 'date_end', 'date_text', 'venue', 'close_date', 'capacity', 'status',
       'pay_food', 'pay_lodging', 'pay_travel', 'pay_note',
-      'online_platform', 'online_link', 'online_user', 'online_password'].forEach((k) => {
+      'online_platform', 'online_link', 'online_user', 'online_password',
+      'organizer_division', 'organizer_group', 'organizer_phone', 'meeting_note'].forEach((k) => {
       if (v[k] != null) f.elements[k].value = v[k];
     });
     f.elements.date_text.dataset.auto = (!m || m.date_text === thaiRange(m.date_start, m.date_end)) ? '1' : '';
@@ -444,20 +455,49 @@
       const c = m.counts;
       $('#responseCount').textContent = 'ตอบรับ ' + rows.length + ' คน · On-site ' + c.onsite +
         (m.type === 'workshop' ? ' · ขอที่พัก ' + c.lodging : ' · Online ' + c.online) + ' · ไม่เข้าร่วม ' + c.absent;
-      const head = el('tr', {}, [el('th', { text: '#' })].concat(RESPONSE_COLS.map(([h]) => el('th', { text: h }))));
+      const head = el('tr', {}, [el('th', { text: '#' }), el('th', { text: 'จัดการ' })]
+        .concat(RESPONSE_COLS.map(([h]) => el('th', { text: h }))));
       $('#responseTable thead').append(head);
       const tbody = $('#responseTable tbody');
+      tbody.innerHTML = '';
       if (!rows.length) {
-        tbody.append(el('tr', {}, [el('td', { class: 'empty', colspan: String(RESPONSE_COLS.length + 1), text: 'ยังไม่มีผู้ตอบรับ' })]));
+        tbody.append(el('tr', {}, [el('td', { class: 'empty', colspan: String(RESPONSE_COLS.length + 2), text: 'ยังไม่มีผู้ตอบรับ' })]));
         return;
       }
       rows.forEach((r, i) => {
-        tbody.append(el('tr', {}, [el('td', { class: 'num', text: String(i + 1) })]
+        const absent = r.attendance === 'ไม่เข้าร่วม';
+        const actions = el('td', { class: 'row-actions' }, [
+          absent ? el('span', { class: 'pill closed', text: 'ไม่เข้าร่วม' })
+            : el('button', { class: 'btn ghost small', type: 'button', text: 'ไม่เข้าร่วม', onclick: (e) => manageResponse(e, 'setAbsent', m, r) }),
+          el('button', { class: 'btn danger small', type: 'button', text: 'ลบ', onclick: (e) => manageResponse(e, 'deleteResponse', m, r) }),
+        ]);
+        tbody.append(el('tr', {}, [el('td', { class: 'num', text: String(i + 1) }), actions]
           .concat(RESPONSE_COLS.map(([, fn]) => el('td', { text: fn(r) || '' })))));
       });
     } catch (ex) {
       $('#responseCount').textContent = ex.message;
     }
+  }
+
+  /** เปลี่ยนเป็นไม่เข้าร่วม หรือ ลบรายชื่อ แล้วโหลดยอดและรายชื่อใหม่ */
+  async function manageResponse(e, op, m, r) {
+    const name = r.prefix + r.first_name + ' ' + r.last_name;
+    const msg = op === 'setAbsent'
+      ? 'เปลี่ยน ' + name + ' เป็น "ไม่เข้าร่วม"?\n\nยังเก็บประวัติไว้ ที่นั่ง On-site และยอดที่พักจะคืนทันที'
+      : 'ลบรายชื่อ ' + name + ' (' + r.email + ') ออกจากประชุมนี้?\n\nลบแล้วกู้คืนไม่ได้ ถ้าผู้เข้าร่วมแค่ไม่สะดวกมา แนะนำให้ใช้ "ไม่เข้าร่วม" แทน';
+    if (!window.confirm(msg)) return;
+    await withBusy(e.currentTarget, async () => {
+      try {
+        await call(op, { id: m.id, email: r.email });
+        toast(op === 'setAbsent' ? 'เปลี่ยนเป็นไม่เข้าร่วมแล้ว' : 'ลบรายชื่อแล้ว');
+        data = await call('overview');
+        renderMeetings();
+        const fresh = data.meetings.find((x) => x.id === m.id);
+        if (fresh) await openResponses(fresh);
+      } catch (ex) {
+        toast(ex.message, true);
+      }
+    }, op === 'setAbsent' ? 'กำลังเปลี่ยน…' : 'กำลังลบ…');
   }
 
   async function sendOnlineInfo(e) {
@@ -493,8 +533,15 @@
       const safe = /^[=+\-@]/.test(s) ? "'" + s : s;
       return /[",\n]/.test(safe) ? '"' + safe.replace(/"/g, '""') + '"' : safe;
     };
+    // เฉพาะผู้ที่ตอบเข้าร่วม (On-site / Online) ไม่รวมผู้ที่ตอบ "ไม่เข้าร่วม"
+    const iAtt = currentResponses.headers.indexOf('attendance');
+    const attending = currentResponses.rows.filter((r) => r[iAtt] !== 'ไม่เข้าร่วม');
+    if (!attending.length) {
+      toast('ยังไม่มีผู้ตอบเข้าร่วม จึงไม่มีรายชื่อให้ดาวน์โหลด', true);
+      return;
+    }
     const lines = [currentResponses.headers.map(esc).join(',')]
-      .concat(currentResponses.rows.map((r) => r.map(esc).join(',')));
+      .concat(attending.map((r) => r.map(esc).join(',')));
     const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = el('a', { href: URL.createObjectURL(blob), download: currentResponses.meeting.id + '.csv' });
     document.body.append(a);
