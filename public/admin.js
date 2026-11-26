@@ -38,6 +38,7 @@
   let data = null;
   let editingId = null;
   let currentResponses = null;
+  const READ_OPS = ['login', 'overview', 'responses'];
 
   /* ---------------------------------------------------------------- API */
 
@@ -47,12 +48,24 @@
     if (useMock) {
       res = await window.MOCK_API.admin(body);
     } else {
-      const r = await fetch(apiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(body),
-      });
-      res = await r.json();
+      // คำสั่งอ่านอย่างเดียว ลองใหม่ให้เองหนึ่งครั้งถ้าการเชื่อมต่อหลุด
+      const tries = READ_OPS.includes(op) ? 2 : 1;
+      for (let i = 1; ; i++) {
+        try {
+          const r = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(body),
+          });
+          res = await r.json();
+          break;
+        } catch (ex) {
+          if (i < tries) continue;
+          const err = new Error('เชื่อมต่อระบบไม่สำเร็จ อาจเป็นเพราะเครือข่ายหรือระบบตอบช้า กรุณาลองอีกครั้ง');
+          err.network = true;
+          throw err;
+        }
+      }
     }
     if (res.auth === false && op !== 'login') {
       logout(res.error);
@@ -410,7 +423,20 @@
     const btn = f.querySelector('button[type=submit]');
     await withBusy(btn, async () => {
       try {
-        const res = await call('saveMeeting', { meeting, originalId: editingId || '' });
+        const expectId = editingId || (data && data.nextId) || '';
+        let res;
+        try {
+          res = await call('saveMeeting', { meeting, originalId: editingId || '' });
+        } catch (ex) {
+          // การเชื่อมต่อหลุดระหว่างบันทึก: ข้อมูลอาจบันทึกไปแล้ว ตรวจจากรายการล่าสุดก่อนแจ้งผิดพลาด
+          if (!ex.network) throw ex;
+          await reload();
+          const m = data.meetings.find((x) => x.id === expectId);
+          const same = m && ['name', 'organizer_group', 'organizer_phone', 'meeting_note', 'pay_note']
+            .every((k) => String(m[k] || '').trim() === String(meeting[k] || '').trim().replace(/\r/g, ''));
+          if (!same) throw ex;
+          res = { id: expectId };
+        }
         await reload();
         const saved = data.meetings.find((x) => x.id === (res.id || meeting.id));
         toast(editingId ? 'บันทึกการประชุมแล้ว' : 'สร้างการประชุมและออกลิงก์แล้ว');

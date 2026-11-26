@@ -123,8 +123,14 @@ function doPost(e) {
   } catch (err) {
     return json_({ ok: false, error: 'ข้อมูลไม่ถูกต้อง' });
   }
-  if (body.action === 'admin') return json_(admin_(body));
-  return register_(body);
+  try {
+    if (body.action === 'admin') return json_(admin_(body));
+    return register_(body);
+  } catch (err) {
+    // ตอบเป็น JSON เสมอ ถ้าหลุดเป็นหน้า error ของ Google เบราว์เซอร์จะเห็นแค่ "Failed to fetch"
+    console.error('doPost', err);
+    return json_({ ok: false, error: 'ระบบขัดข้อง: ' + (err && err.message ? err.message : err) });
+  }
 }
 
 function register_(body) {
@@ -786,6 +792,7 @@ function admin_(b) {
     }
     return { ok: false, error: 'ไม่รู้จักคำสั่ง' };
   } catch (err) {
+    console.error('admin ' + b.op, err);
     return { ok: false, error: 'ระบบขัดข้อง: ' + err.message };
   } finally {
     try { lock.releaseLock(); } catch (ignore) {}
