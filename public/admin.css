@@ -208,6 +208,31 @@
 .link-row .btn { text-decoration: none; display: inline-flex; align-items: center; }
 .link-panel textarea { background: var(--surface) !important; }
 body.admin-busy .btn:not(.is-busy) { cursor: progress; }
+
+.data td.answer { white-space: pre-line; min-width: 200px; }
+
+/* คำถามเพิ่มเติม */
+.q-list { display: grid; gap: 10px; margin: 4px 0 12px; }
+.q-list:empty { display: none; }
+.q-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+}
+.q-actions { display: flex; align-items: center; gap: 12px; }
+.q-num { font-weight: 700; color: var(--ink-3); min-width: 1.4em; }
+.q-text {
+  font: inherit; width: 100%;
+  padding: 10px 14px; border-radius: 12px;
+  border: 1.5px solid var(--line); background: var(--surface-2, #f3f6f7);
+}
+.q-text:focus { outline: none; border-color: var(--primary); background: var(--surface); }
+.q-opt { display: inline-flex; align-items: center; gap: 6px; font-size: .9rem; white-space: nowrap; cursor: pointer; }
+@media (max-width: 720px) {
+  .q-row { grid-template-columns: auto minmax(0, 1fr); }
+  .q-actions { grid-column: 2; flex-wrap: wrap; }
+}
 .link-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: start; }
 .qr-box {
   margin: 0;

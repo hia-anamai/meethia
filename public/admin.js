@@ -455,6 +455,7 @@
       if (v[k] != null) f.elements[k].value = v[k];
     });
     f.elements.date_text.dataset.auto = (!m || m.date_text === thaiRange(m.date_start, m.date_end)) ? '1' : '';
+    renderQuestionEditor((m && m.questions) || []);
     const del = $('#deleteMeetingBtn');
     del.hidden = !m;
     del.disabled = !!(m && m.counts.total);
@@ -464,6 +465,50 @@
     syncModeFields();
     showMeetingView('form');
     f.elements.name.focus();
+  }
+
+  /* ---------------------------------------------- คำถามเพิ่มเติม (ต่อประชุม) */
+
+  const MAX_QUESTIONS = 5;
+
+  function questionRow(q) {
+    const text = el('input', { class: 'q-text', maxlength: '200', placeholder: 'พิมพ์คำถาม เช่น หัวข้อที่ต้องการเสนอในที่ประชุม', 'aria-label': 'คำถาม' });
+    text.value = (q && q.q) || '';
+    const req = el('input', { type: 'checkbox', class: 'q-required' });
+    req.checked = !!(q && q.required);
+    const long = el('input', { type: 'checkbox', class: 'q-long' });
+    long.checked = !!(q && q.long);
+    const row = el('div', { class: 'q-row' }, [
+      el('span', { class: 'q-num' }),
+      text,
+      el('div', { class: 'q-actions' }, [
+        el('label', { class: 'q-opt' }, [req, ' ต้องตอบ']),
+        el('label', { class: 'q-opt' }, [long, ' ตอบยาว']),
+        el('button', { class: 'btn ghost small q-del', type: 'button', text: 'ลบ', 'aria-label': 'ลบคำถาม', onclick: () => { row.remove(); syncQuestionEditor(); } }),
+      ]),
+    ]);
+    return row;
+  }
+
+  function renderQuestionEditor(list) {
+    const box = $('#questionList');
+    box.innerHTML = '';
+    list.slice(0, MAX_QUESTIONS).forEach((q) => box.append(questionRow(q)));
+    syncQuestionEditor();
+  }
+
+  function syncQuestionEditor() {
+    const rows = $$('#questionList .q-row');
+    rows.forEach((r, i) => { $('.q-num', r).textContent = (i + 1) + '.'; });
+    $('#addQuestionBtn').hidden = rows.length >= MAX_QUESTIONS;
+  }
+
+  function collectQuestions() {
+    return $$('#questionList .q-row').map((r) => ({
+      q: $('.q-text', r).value.replace(/\s+/g, ' ').trim(),
+      required: $('.q-required', r).checked,
+      long: $('.q-long', r).checked,
+    })).filter((q) => q.q);
   }
 
   function syncDateText() {
@@ -477,6 +522,7 @@
     const f = $('#meetingForm');
     const meeting = {};
     Array.from(f.elements).forEach((x) => { if (x.name) meeting[x.name] = x.value.trim(); });
+    meeting.custom_questions = collectQuestions();
     const err = $('#meetingError');
     err.hidden = true;
     const btn = f.querySelector('button[type=submit]');
@@ -543,13 +589,14 @@
       const c = m.counts;
       $('#responseCount').textContent = 'ตอบรับ ' + rows.length + ' คน · On-site ' + c.onsite +
         (m.type === 'workshop' ? ' · ขอที่พัก ' + c.lodging : ' · Online ' + c.online) + ' · ไม่เข้าร่วม ' + c.absent;
+      const cols = RESPONSE_COLS.slice(0, -3).concat(questionColumns(m, rows), RESPONSE_COLS.slice(-3));
       const head = el('tr', {}, [el('th', { text: '#' }), el('th', { text: 'จัดการ' })]
-        .concat(RESPONSE_COLS.map(([h]) => el('th', { text: h }))));
+        .concat(cols.map(([h]) => el('th', { text: h }))));
       $('#responseTable thead').append(head);
       const tbody = $('#responseTable tbody');
       tbody.innerHTML = '';
       if (!rows.length) {
-        tbody.append(el('tr', {}, [el('td', { class: 'empty', colspan: String(RESPONSE_COLS.length + 2), text: 'ยังไม่มีผู้ตอบรับ' })]));
+        tbody.append(el('tr', {}, [el('td', { class: 'empty', colspan: String(cols.length + 2), text: 'ยังไม่มีผู้ตอบรับ' })]));
         return;
       }
       rows.forEach((r, i) => {
@@ -560,11 +607,38 @@
           el('button', { class: 'btn danger small', type: 'button', text: 'ลบ', onclick: (e) => manageResponse(e, 'deleteResponse', m, r) }),
         ]);
         tbody.append(el('tr', {}, [el('td', { class: 'num', text: String(i + 1) }), actions]
-          .concat(RESPONSE_COLS.map(([, fn]) => el('td', { text: fn(r) || '' })))));
+          .concat(cols.map(([, fn, cls]) => el('td', { text: fn(r) || '', class: cls || '' })))));
       });
     } catch (ex) {
       $('#responseCount').textContent = ex.message;
     }
+  }
+
+  /** คำตอบคำถามเพิ่มเติมที่เก็บเป็น JSON [{ q, a }] */
+  function parseAnswers(v) {
+    if (!v) return [];
+    try {
+      const list = JSON.parse(String(v).replace(/^'/, ''));
+      return Array.isArray(list) ? list.filter((x) => x && x.q) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /** หัวข้อคำถาม: คำถามปัจจุบันของประชุม + คำถามเดิมที่มีคนตอบไว้ (กรณีผู้ดูแลแก้คำถามภายหลัง) */
+  function questionTitles(m, objects) {
+    const titles = ((m && m.questions) || []).map((q) => q.q);
+    objects.forEach((r) => parseAnswers(r.custom_answers).forEach((x) => { if (!titles.includes(x.q)) titles.push(x.q); }));
+    return titles;
+  }
+
+  function answerOf(r, q) {
+    const hit = parseAnswers(r.custom_answers).find((x) => x.q === q);
+    return hit ? hit.a : '';
+  }
+
+  function questionColumns(m, objects) {
+    return questionTitles(m, objects).map((q) => [q, (r) => answerOf(r, q), 'answer']);
   }
 
   /** เปลี่ยนเป็นไม่เข้าร่วม หรือ ลบรายชื่อ แล้วโหลดยอดและรายชื่อใหม่ */
@@ -625,8 +699,14 @@
       toast('ยังไม่มีผู้ตอบเข้าร่วม จึงไม่มีรายชื่อให้ดาวน์โหลด', true);
       return;
     }
-    const lines = [currentResponses.headers.map(esc).join(',')]
-      .concat(attending.map((r) => r.map(esc).join(',')));
+    // คำตอบคำถามเพิ่มเติม: แยกเป็นคอลัมน์ละคำถาม (หัวคอลัมน์ = ตัวคำถาม) แทนข้อความ JSON
+    const headers = currentResponses.headers;
+    const iAns = headers.indexOf('custom_answers');
+    const toObj = (r) => Object.fromEntries(headers.map((h, i) => [h, r[i]]));
+    const titles = iAns >= 0 ? questionTitles(currentResponses.meeting, attending.map(toObj)) : [];
+    const keep = (r) => r.filter((_, i) => i !== iAns);
+    const lines = [keep(headers).concat(titles).map(esc).join(',')]
+      .concat(attending.map((r) => keep(r).concat(titles.map((q) => answerOf(toObj(r), q))).map(esc).join(',')));
     const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = el('a', { href: URL.createObjectURL(blob), download: currentResponses.meeting.id + '.csv' });
     document.body.append(a);
@@ -937,6 +1017,13 @@
     $('#backToListBtn').addEventListener('click', () => showMeetingView('list'));
     $('#csvBtn').addEventListener('click', downloadCsv);
     $('#registerBtn').addEventListener('click', downloadRegister);
+    $('#addQuestionBtn').addEventListener('click', () => {
+      if ($$('#questionList .q-row').length >= MAX_QUESTIONS) return;
+      const row = questionRow(null);
+      $('#questionList').append(row);
+      syncQuestionEditor();
+      $('.q-text', row).focus();
+    });
     $('#sendOnlineBtn').addEventListener('click', sendOnlineInfo);
     $('#saveListsBtn').addEventListener('click', saveLists);
     $('#saveUnitsBtn').addEventListener('click', saveUnits);

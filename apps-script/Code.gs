@@ -23,7 +23,12 @@ const MEETING_HEADERS = [
   'pay_food', 'pay_lodging', 'pay_travel', 'pay_note', 'link', 'attend_mode',
   'online_platform', 'online_link', 'online_user', 'online_password',
   'organizer_division', 'organizer_group', 'organizer_phone', 'meeting_note',
+  'custom_questions',
 ];
+
+// คำถามเพิ่มเติมที่ผู้ดูแลตั้งเองต่อประชุม (ผู้เข้าร่วมพิมพ์ตอบ) เก็บเป็น JSON ในคอลัมน์ custom_questions
+// [{ q: 'คำถาม', required: true, long: false }] · คำตอบเก็บใน responses.custom_answers เป็น JSON [{ q, a }]
+const MAX_QUESTIONS = 5;
 
 // ผู้จัดประชุม (กอง กลุ่ม เบอร์โทร) เป็นข้อมูลสาธารณะ แสดงในแบบตอบรับและอีเมล
 const ORGANIZER_FIELDS = ['organizer_division', 'organizer_group', 'organizer_phone'];
@@ -41,6 +46,7 @@ const RESPONSE_HEADERS = [
   'attendance', 'food', 'allergy', 'absence_note',
   'need_lodging', 'check_in', 'check_out', 'room_type', 'roommate', 'travel', 'lodging_note',
   'ack_expense', 'pay_food', 'pay_lodging', 'pay_travel', 'consent',
+  'custom_answers',
 ];
 
 const PAY_OPTIONS = ['เบิกจากผู้จัด', 'เบิกจากต้นสังกัด', 'ไม่มี'];
@@ -292,9 +298,37 @@ function publicMeeting_(m) {
     organizer_group: String(m.organizer_group || '').trim(),
     organizer_phone: String(m.organizer_phone || '').trim(),
     meeting_note: String(m.meeting_note || '').trim(), // หมายเหตุอื่น ๆ จากผู้จัด (ไม่ใช่ค่าใช้จ่าย)
+    questions: parseQuestions_(m.custom_questions),
     open: state.open,
     closed_reason: state.reason,
   };
+}
+
+/** อ่าน/ทำความสะอาดคำถามเพิ่มเติม รับได้ทั้งข้อความ JSON จากชีตและ array จากหน้าผู้ดูแล */
+function parseQuestions_(v) {
+  let list = v;
+  if (typeof v === 'string') {
+    if (!v.trim()) return [];
+    try { list = JSON.parse(v); } catch (e) { return []; }
+  }
+  if (!Array.isArray(list)) return [];
+  return list
+    .map(function (x) {
+      return { q: clean_(x && x.q, 200), required: !!(x && x.required), long: !!(x && x.long) };
+    })
+    .filter(function (x) { return x.q; })
+    .slice(0, MAX_QUESTIONS);
+}
+
+/** คำตอบที่เก็บไว้ (JSON) → [{ q, a }] */
+function parseAnswers_(v) {
+  if (!v) return [];
+  try {
+    const list = JSON.parse(String(v));
+    return Array.isArray(list) ? list.filter(function (x) { return x && x.q; }) : [];
+  } catch (e) {
+    return [];
+  }
 }
 
 function attendMode_(m) {
@@ -428,6 +462,20 @@ function validate_(b, meeting) {
     d.absence_note = clean_(b.absence_note, 500);
   }
 
+  // คำถามเพิ่มเติม: ถามเฉพาะผู้ที่เข้าร่วม (On-site / Online)
+  d.custom_answers = '';
+  if (d.attendance !== ATTEND.NO && m.questions.length) {
+    const given = Array.isArray(b.custom_answers) ? b.custom_answers : [];
+    const answers = [];
+    for (let i = 0; i < m.questions.length; i++) {
+      const q = m.questions[i];
+      const a = q.long ? cleanNote_(given[i]).slice(0, 1000) : clean_(given[i], 300);
+      if (q.required && !a) return { error: 'กรุณาตอบคำถาม: ' + q.q };
+      answers.push({ q: q.q, a: a });
+    }
+    d.custom_answers = JSON.stringify(answers);
+  }
+
   if (lodgingEligible_(m, d)) {
     d.need_lodging = clean_(b.need_lodging, 20);
     if (['ต้องการ', 'ไม่ต้องการ', 'ไม่พักค้าง'].indexOf(d.need_lodging) < 0) return { error: 'กรุณาระบุความต้องการที่พัก' };
@@ -468,6 +516,7 @@ function safeCell_(v) {
 
 function upsertResponse_(d, meeting) {
   const sh = ss_().getSheetByName(SHEET.RESPONSES);
+  ensureHeaders_(sh, RESPONSE_HEADERS); // ชีตเดิมที่ยังไม่มีคอลัมน์ใหม่ (เช่น custom_answers)
   const now = new Date();
   const rows = readTable_(SHEET.RESPONSES);
 
@@ -586,6 +635,14 @@ function sendConfirmation_(d, meeting, updated) {
     }
     html += row('การเดินทาง', d.travel);
     html += row('หมายเหตุที่พัก', d.lodging_note);
+  }
+  const answers = parseAnswers_(d.custom_answers);
+  if (answers.length) {
+    html += section('คำถามเพิ่มเติม');
+    answers.forEach(function (x) {
+      html += '<tr><td style="padding:4px 12px 4px 0;color:#555;vertical-align:top">' + esc_(x.q) +
+        '</td><td style="padding:4px 0">' + (x.a ? noteHtml_(x.a) : '-') + '</td></tr>';
+    });
   }
   html += '</table>';
   if (m.meeting_note) {
@@ -968,7 +1025,11 @@ function adminSaveMeeting_(m, originalId) {
     organizer_phone: clean_(m.organizer_phone, 60),
     // หมายเหตุหลายบรรทัด: คงการขึ้นบรรทัดใหม่ไว้
     meeting_note: cleanNote_(m.meeting_note),
+    custom_questions: parseQuestions_(m.custom_questions),
   };
+  if (Array.isArray(m.custom_questions) && m.custom_questions.length > MAX_QUESTIONS) {
+    return { ok: false, error: 'ตั้งคำถามเพิ่มเติมได้ไม่เกิน ' + MAX_QUESTIONS + ' ข้อ' };
+  }
   if (d.organizer_phone && !/^[0-9+\-\s(),.ต่อ]+$/.test(d.organizer_phone)) {
     return { ok: false, error: 'เบอร์โทรติดต่อใช้ได้เฉพาะตัวเลข เว้นวรรค - และคำว่า ต่อ' };
   }
@@ -1013,6 +1074,8 @@ function adminSaveMeeting_(m, originalId) {
   sh.getRange(row, onlineCol, 1, ONLINE_FIELDS.length).setNumberFormat('@')
     .setValues([ONLINE_FIELDS.map(function (k) { return d.attend_mode === 'onsite' ? '' : d[k]; })]);
   sh.getRange(row, MEETING_HEADERS.indexOf('meeting_note') + 1).setValue(safeCell_(d.meeting_note));
+  sh.getRange(row, MEETING_HEADERS.indexOf('custom_questions') + 1).setNumberFormat('@')
+    .setValue(d.custom_questions.length ? JSON.stringify(d.custom_questions) : '');
   const orgCol = MEETING_HEADERS.indexOf('organizer_division') + 1;
   sh.getRange(row, orgCol, 1, ORGANIZER_FIELDS.length).setNumberFormat('@')
     .setValues([ORGANIZER_FIELDS.map(function (k) { return k === 'organizer_phone' ? d[k] : safeCell_(d[k]); })]); // คอลัมน์เป็นข้อความ เลข 0 นำหน้าไม่หาย

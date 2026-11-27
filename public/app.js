@@ -337,6 +337,34 @@
     }
   }
 
+  /** คำถามเพิ่มเติมที่ผู้จัดตั้งไว้ในหน้าผู้ดูแล (ช่องพิมพ์ตอบ) */
+  function questions() {
+    return Array.isArray(meeting.questions) ? meeting.questions : [];
+  }
+
+  function renderQuestions() {
+    const box = $('#questionFields');
+    box.innerHTML = '';
+    questions().forEach((q, i) => {
+      const label = document.createElement('label');
+      label.className = 'field wide';
+      label.append(q.q);
+      if (q.required) label.append(' ', Object.assign(document.createElement('span'), { className: 'req', textContent: '*' }));
+      else label.append(Object.assign(document.createElement('span'), { className: 'opt', textContent: ' (ถ้ามี)' }));
+      const input = document.createElement(q.long ? 'textarea' : 'input');
+      input.name = 'q_' + i;
+      if (q.long) input.rows = 3;
+      input.maxLength = q.long ? 1000 : 300;
+      label.append(input);
+      box.append(label);
+    });
+  }
+
+  function questionsShown() {
+    const att = radioValue('attendance');
+    return questions().length > 0 && !!att && att !== ABSENT;
+  }
+
   function renderAttendOptions() {
     const box = $('#attendOptions');
     const mode = meeting.attend_mode || (meeting.type === 'workshop' ? 'onsite' : 'hybrid');
@@ -426,6 +454,7 @@
     $('#onsiteBlock').hidden = att !== ONSITE;
     $('#foodField').hidden = meeting.pay_food === 'ไม่มี';
     $('#absentBlock').hidden = att !== ABSENT;
+    $('#questionBlock').hidden = !questionsShown();
     const need = radioValue('need_lodging') === 'ต้องการ';
     $('#lodgingDetails').hidden = !need;
     $('#roommateField').hidden = radioValue('room_type') !== 'พักคู่';
@@ -487,6 +516,12 @@
       if (!att) return fail('กรุณาเลือกรูปแบบการเข้าร่วม', 'attendance');
       if (att !== ABSENT && !field('ack_expense').checked) return fail('กรุณายืนยันว่ารับทราบเงื่อนไขค่าใช้จ่าย', 'ack_expense');
       if (att === ONSITE && meeting.pay_food !== 'ไม่มี' && !requireSelect('food', 'ประเภทอาหาร')) return false;
+      if (questionsShown()) {
+        const qs = questions();
+        for (let i = 0; i < qs.length; i++) {
+          if (qs[i].required && !text('q_' + i)) return fail('กรุณาตอบคำถาม: ' + qs[i].q, 'q_' + i);
+        }
+      }
       return true;
     }
     if (step === 'lodging') {
@@ -537,6 +572,7 @@
       roommate: need === 'ต้องการ' && radioValue('room_type') === 'พักคู่' ? text('roommate') : '',
       travel: lodging ? travelValue() : '',
       lodging_note: lodging ? text('lodging_note') : '',
+      custom_answers: questionsShown() ? questions().map((_, i) => text('q_' + i)) : [],
     };
   }
 
@@ -565,6 +601,7 @@
       ['ประเภทห้อง', data.room_type],
       ['ผู้พักร่วม', data.roommate],
       ['การเดินทาง', data.travel],
+      ...(data.custom_answers || []).map((a, i) => [questions()[i] ? questions()[i].q : 'คำถาม ' + (i + 1), a]),
       ['ค่าอาหารและอาหารว่าง', meeting.pay_food],
       ['ค่าที่พัก', meeting.pay_lodging],
       ['ค่าพาหนะเดินทาง', meeting.pay_travel],
@@ -751,6 +788,7 @@
     fillLevel();
 
     renderExpense();
+    renderQuestions();
 
     field('position').addEventListener('change', fillLevel);
     form.addEventListener('change', updateConditional);

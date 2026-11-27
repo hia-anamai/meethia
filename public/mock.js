@@ -26,6 +26,10 @@ window.MOCK_API = (function () {
       close_date: '2027-01-10',
       pay_food: 'เบิกจากผู้จัด', pay_lodging: 'เบิกจากผู้จัด', pay_travel: 'เบิกจากต้นสังกัด',
       pay_note: 'เบิกค่าที่พักห้องพักคู่จากผู้จัด ผู้ที่เลือกพักเดี่ยวชำระส่วนต่างเอง',
+      questions: [
+        { q: 'ประเด็นที่ต้องการเสนอหรือสอบถามในที่ประชุม', required: true, long: true },
+        { q: 'ชื่อที่ต้องการให้แสดงบนป้ายชื่อ', required: false, long: false },
+      ],
       open: true, closed_reason: '',
     },
     'FULL-01-2570': {
@@ -71,9 +75,10 @@ window.MOCK_API = (function () {
   const HEADERS = ['submitted_at', 'updated_at', 'meeting_id', 'meeting_name', 'prefix', 'first_name', 'last_name',
     'position', 'unit', 'province', 'phone', 'email', 'attendance', 'food', 'allergy', 'absence_note',
     'need_lodging', 'check_in', 'check_out', 'room_type', 'roommate', 'travel', 'lodging_note',
-    'ack_expense', 'pay_food', 'pay_lodging', 'pay_travel', 'consent'];
+    'ack_expense', 'pay_food', 'pay_lodging', 'pay_travel', 'consent', 'custom_answers'];
   const responses = [
-    { meeting_id: 'WS-02-2570', prefix: 'นาง', first_name: 'สมศรี', last_name: 'ใจดี', position: 'นักวิชาการสาธารณสุข', unit: 'ศูนย์อนามัยที่ 7', province: 'ขอนแก่น', phone: '0812345678', email: 'somsri@example.com', attendance: 'On-site', food: 'อาหารทั่วไป', need_lodging: 'ต้องการ', check_in: '2027-01-19', check_out: '2027-01-22', room_type: 'พักคู่', travel: 'รถยนต์ราชการ', updated_at: '2026-11-20 10:12' },
+    { meeting_id: 'WS-02-2570', prefix: 'นาง', first_name: 'สมศรี', last_name: 'ใจดี', position: 'นักวิชาการสาธารณสุข', unit: 'ศูนย์อนามัยที่ 7', province: 'ขอนแก่น', phone: '0812345678', email: 'somsri@example.com', attendance: 'On-site', food: 'อาหารทั่วไป', need_lodging: 'ต้องการ', check_in: '2027-01-19', check_out: '2027-01-22', room_type: 'พักคู่', travel: 'รถยนต์ราชการ', updated_at: '2026-11-20 10:12',
+      custom_answers: JSON.stringify([{ q: 'ประเด็นที่ต้องการเสนอหรือสอบถามในที่ประชุม', a: 'การใช้ข้อมูลสุขภาพระดับอำเภอ\nและตัวชี้วัดที่ควรติดตาม' }, { q: 'ชื่อที่ต้องการให้แสดงบนป้ายชื่อ', a: 'พี่ศรี' }]) },
     { meeting_id: 'WS-02-2570', prefix: 'นาย', first_name: 'ประเสริฐ', last_name: 'มั่นคง', position: 'นักโภชนาการ', unit: 'สำนักโภชนาการ', province: 'นนทบุรี', phone: '0898765432', email: 'prasert@example.com', attendance: 'On-site', food: 'อาหารอิสลาม (ฮาลาล)', allergy: 'ถั่ว', need_lodging: 'ไม่ต้องการ', travel: 'รถยนต์ส่วนตัว', updated_at: '2026-11-21 14:30' },
     { meeting_id: 'WS-02-2570', prefix: 'นางสาว', first_name: 'วันดี', last_name: 'สุขใจ', position: 'พยาบาลวิชาชีพ', unit: 'สำนักงานสาธารณสุขจังหวัดเชียงใหม่', province: 'เชียงใหม่', phone: '0861112222', email: 'wandee@example.com', attendance: 'ไม่เข้าร่วม', absence_note: 'ติดราชการ', updated_at: '2026-11-22 09:05' },
     { meeting_id: 'FULL-01-2570', prefix: 'นาย', first_name: 'เต็ม', last_name: 'แล้ว', position: 'นักวิชาการสาธารณสุข', unit: 'กองแผนงาน', province: 'นนทบุรี', phone: '0800000001', email: 'full1@example.com', attendance: 'On-site', food: 'อาหารทั่วไป', updated_at: '2026-11-23 09:00' },
@@ -148,6 +153,8 @@ window.MOCK_API = (function () {
         m.capacity = m.capacity ? Number(m.capacity) : '';
         m.open = m.status === 'เปิด';
         m.closed_reason = m.open ? '' : 'การประชุมนี้ปิดรับการตอบรับแล้ว';
+        m.questions = (m.custom_questions || []).slice(0, 5);
+        delete m.custom_questions;
         meetings[m.id] = m;
         return { ok: true, id: m.id };
       }
@@ -204,6 +211,12 @@ window.MOCK_API = (function () {
     async submit(data) {
       await wait(600);
       console.log('[mock] ส่งข้อมูล', data);
+      const m = meetings[data.meeting_id];
+      const qs = (m && m.questions) || [];
+      if (data.attendance !== 'ไม่เข้าร่วม') {
+        const miss = qs.find((q, i) => q.required && !String((data.custom_answers || [])[i] || '').trim());
+        if (miss) return { ok: false, error: 'กรุณาตอบคำถาม: ' + miss.q };
+      }
       return { ok: true, updated: false, emailSent: true };
     },
   };
